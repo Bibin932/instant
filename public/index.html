@@ -26,7 +26,7 @@
         <div class="eyebrow"><span class="spark">✦</span> EVERY MOMENT, IN REAL TIME</div>
         <h1>Your memories.<br><span>One beautiful place.</span></h1>
         <p class="hero-sub">Every smile, every little moment — delivered from the camera to your screen. No app. No waiting. Just memories.</p>
-        <div class="hero-cta"><button class="btn btn-primary" id="uploadJump">＋ Add photos & videos</button><button class="btn btn-ghost" id="qrJump">▦ Get event QR</button></div>
+        <div class="hero-cta"><button class="btn btn-primary" id="faceJump">◎ Find my photos with my face</button><button class="btn btn-ghost" id="qrJump">▦ Get event QR</button></div>
         <div class="hero-proof"><span class="avatar-stack"><b>✦</b><b>♡</b><b>⌁</b></span><span>Made for moments that matter</span><span class="proof-divider"></span><span class="secure-label">⌑ Private by design</span></div>
       </div>
       <div class="hero-art" aria-label="Decorative photo collage">
@@ -38,6 +38,11 @@
       </div>
     </section>
 
+    <section class="face-search-section" id="faceSearchSection">
+      <div class="face-search-copy"><div class="eyebrow">YOUR MOMENTS, FOUND</div><h2>Find photos <span>with your face.</span></h2><p>Take a selfie or choose a clear photo. We compare it with gallery photos in your browser to find likely matches.</p><small>Your selfie and face descriptors are processed locally in this browser and are not uploaded to the server. Results can be imperfect.</small></div>
+      <div class="face-search-card"><label for="selfieInput" class="face-file-label">Choose or capture a selfie</label><input type="file" id="selfieInput" accept="image/*" capture="user"><label class="privacy-consent"><input type="checkbox" id="faceConsent"> <span>I consent to use this photo for a one-time face match on this device.</span></label><button class="btn btn-primary" id="matchFaceBtn">Find my matching photos</button><button class="text-button hidden" id="clearFaceMatches">Show all gallery photos</button><p id="faceStatus" class="face-status" role="status">Choose a selfie to begin. Face models will load when you start.</p></div>
+    </section>
+
     <section class="event-strip">
       <div class="event-heading"><div class="event-icon">✧</div><div><small>YOU'RE VIEWING</small><h2 id="eventTitle">The Celebration</h2></div></div>
       <div class="event-stats"><div><strong id="photoCount">0</strong><span>Moments shared</span></div><div class="stat-divider"></div><div><strong id="videoCount">0</strong><span>Videos</span></div><div class="stat-divider"></div><div class="live-status"><i></i><span>Updating live</span></div></div>
@@ -47,16 +52,10 @@
       <div class="section-head"><div><div class="eyebrow">THE GOOD STUFF</div><h2>Every moment, <span>collected.</span></h2><p>All the candid smiles and unforgettable memories, together.</p></div>
         <div class="view-controls"><button class="view-btn active" data-view="all">All moments</button><button class="view-btn" data-view="photo">Photos</button><button class="view-btn" data-view="video">Videos</button></div>
       </div>
-      <div class="toolbar"><div class="searchbox"><span>⌕</span><input id="searchInput" placeholder="Search by file name..." aria-label="Search files"></div><div class="toolbar-right"><span class="sort-label">SORT BY</span><select id="sortSelect" aria-label="Sort gallery"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name A–Z</option></select><button class="btn btn-outline btn-small" id="faceBtn">◎ Find my face</button></div></div>
-      <div id="facePanel" class="face-panel hidden"><div class="face-panel-head"><div><strong>Find your moments</strong><p>Choose a selfie. Face matching runs in your browser when the optional face model is configured.</p></div><button class="icon-btn" id="closeFace" aria-label="Close">×</button></div><div class="face-controls"><input type="file" id="selfieInput" accept="image/*" capture="user"><button class="btn btn-primary btn-small" id="matchFaceBtn">Find matching photos</button><span id="faceStatus" class="muted">Face matching needs model files; see README.</span></div></div>
+      <div class="toolbar"><div class="searchbox"><span>⌕</span><input id="searchInput" placeholder="Search by file name..." aria-label="Search files"></div><div class="toolbar-right"><span class="sort-label">SORT BY</span><select id="sortSelect" aria-label="Sort gallery"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name A–Z</option></select></div></div>
       <div id="gallery" class="gallery-grid"></div>
-      <div id="emptyState" class="empty-state"><div class="empty-icon">✧</div><h3>Your gallery is waiting</h3><p>Upload the first photos or videos to start collecting moments.</p><button class="btn btn-primary" id="emptyUpload">Upload your first moment</button></div>
+      <div id="emptyState" class="empty-state"><div class="empty-icon">✧</div><h3>Your gallery is waiting</h3><p>New photos will appear here when the event administrator or connected camera adds them.</p></div>
       <div class="load-more-wrap"><button class="btn btn-outline hidden" id="loadMore">Load more moments</button></div>
-    </section>
-
-    <section class="upload-section" id="uploadSection">
-      <div class="upload-copy"><div class="eyebrow">ADD TO THE STORY</div><h2>Got a moment?<br><span>Drop it here.</span></h2><p>Share your favourite photos and videos with everyone at the event.</p><div class="upload-notes"><span>✓ Photos & videos</span><span>✓ No app needed</span><span>✓ Mobile friendly</span></div></div>
-      <div class="dropzone" id="dropzone"><div class="upload-icon"><svg viewBox="0 0 48 48"><path d="M24 32V8m0 0L14 18M24 8l10 10M8 30v8a3 3 0 003 3h26a3 3 0 003-3v-8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h3>Drop your memories here</h3><p>or <label for="fileInput" class="browse-link">browse files</label></p><small>JPG, PNG, WEBP, MP4, MOV · Up to 250 MB per file</small><input id="fileInput" type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple hidden><div id="uploadQueue" class="upload-queue"></div><button class="btn btn-primary upload-btn" id="uploadBtn">Choose photos & videos</button><div id="uploadStatus" class="upload-status" role="status"></div></div>
     </section>
 
     <section class="qr-section" id="qrSection"><div class="qr-copy"><div class="eyebrow">ONE SCAN AWAY</div><h2>Let everyone in<br><span>on the memories.</span></h2><p>Put the event QR on tables, welcome boards or invitations. Guests scan once and keep coming back as new moments arrive.</p><div class="qr-benefits"><span>✦ Instant access</span><span>✦ No app download</span><span>✦ Works on mobile</span></div></div><div class="qr-card"><div class="qr-frame"><img id="qrImage" alt="QR code for this event" src=""><div id="qrPlaceholder" class="qr-placeholder">QR</div></div><strong>Scan. Smile. Save.</strong><p>Open this event gallery on your phone.</p><button class="btn btn-primary btn-small" id="downloadQr">↓ Download QR code</button><button class="text-button" id="copyLink">Copy gallery link</button></div></section>
@@ -65,5 +64,6 @@
   <footer><a class="brand footer-brand" href="#"><span class="brand-mark">✦</span><span><strong>momentra<span class="brand-dot">.</span></strong><small>BY CYBERCODIX</small></span></a><span>Made for moments that matter.</span><span>© <span id="year"></span> Cybercodix</span></footer>
   <div id="toast" class="toast" role="status"></div>
   <div id="lightbox" class="lightbox hidden"><button class="lightbox-close" id="lightboxClose" aria-label="Close">×</button><button class="lightbox-nav prev" id="prevMedia" aria-label="Previous">‹</button><div id="lightboxContent"></div><button class="lightbox-nav next" id="nextMedia" aria-label="Next">›</button><div id="lightboxCaption"></div></div>
-  <script src="/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
+  <script src="/app.js" defer></script>
 </body></html>
