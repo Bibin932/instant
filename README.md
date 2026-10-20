@@ -84,3 +84,23 @@ Deploy to a Node.js host with persistent storage or attach a persistent volume. 
 - `POST /api/admin/events` — requires `x-admin-key` header
 
 The public event IDs are currently guessable. Add event passwords or signed invite tokens before real private events.
+
+
+## Camera-to-gallery workflow (important)
+
+The website cannot directly connect to every camera over Wi-Fi by itself. Camera wireless transfer features are manufacturer/model-specific. For cameras that support FTP transfer, use this reliable relay architecture:
+
+1. Connect the camera and a laptop to the same dedicated Wi-Fi router (or use the camera's supported network mode).
+2. Run a camera-compatible FTP/FTPS receiver on the laptop, configured with a dedicated upload folder. Configure the camera's FTP server address, port, username/password, and destination folder according to that camera's manual.
+3. Run a **local relay agent** on the laptop to watch the incoming folder and upload completed files to `https://YOUR-DOMAIN/api/upload/EVENT_ID`. The relay must wait until a file stops growing before forwarding it. Keep the laptop awake and connected.
+4. The gallery refreshes periodically and shows new media after the API accepts it. Keep the camera memory card as the original backup.
+
+**Hostinger shared hosting is not a good place to run a camera-facing FTP listener** unless your plan explicitly allows inbound custom ports and persistent daemons. A camera on the event Wi-Fi cannot usually send FTP directly to a normal website URL. Use the laptop relay, a properly configured VPS with secure networking, or a supported manufacturer cloud workflow. Do not expose plain FTP credentials over the public internet. Prefer FTPS/SFTP or a private network/VPN for production.
+
+### Preserving original image/video quality
+
+The web uploader stores the uploaded file bytes without resizing or recompressing them. To preserve camera quality, set the camera's transfer mode to **original/full-size JPEG** (not resized web JPEG) and choose original/high-quality video transfer if the camera supports it. RAW files are currently not accepted by the web upload API; shoot RAW+JPEG if you need RAW originals, transfer RAW to a separate archive, and send JPEG previews to the gallery. Wi-Fi speed affects transfer time, not the file's intrinsic quality.
+
+### Camera compatibility checklist
+
+Before an event, check the exact camera model's manual for FTP transfer, wireless transmitter/app support, video transfer support, and whether it can transfer automatically after each shot. Some camera Wi-Fi functions only transfer selected JPEGs or require a manufacturer app; not every model supports automatic FTP or video transfer. Test a full-resolution JPEG and a short video before relying on it at an event.
