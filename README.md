@@ -8,7 +8,7 @@ A responsive Node.js event gallery prototype for photos and videos, with:
 - Auto-refreshing gallery
 - Photo/video filters, search, sorting, lightbox
 - Optional Google Drive backup using a service account
-- Optional FTP receiver process (see limitations below)
+- Optional FTP camera receiver that automatically registers stable uploads in the matching event gallery
 
 ## Requirements
 - Node.js 20+
@@ -37,14 +37,27 @@ Google Drive is configured as an **optional backup**, not the primary live deliv
 
 For large files and unstable connections, Google recommends resumable uploads. This MVP's Drive backup uses the Node.js Google API client and streams files; for production-scale video, implement resumable uploads and retry queues. See https://developers.google.com/workspace/drive/api/guides/manage-uploads
 
-## Camera Wi-Fi / FTP
-Camera models vary. A camera with FTP transfer can be configured to send JPEGs to the FTP receiver, or a laptop relay can receive camera uploads and forward them to the app. Start the FTP process separately:
-```bash
-npm run ftp
-```
-Set `FTP_HOST`, `FTP_PORT`, `FTP_USER`, `FTP_PASSWORD`, and `FTP_ROOT` in `.env`. Configure the camera's FTP destination to the laptop/server IP and port 2121. This is a basic development receiver, not a hardened public FTP service. Do not expose plain FTP directly to the internet. Use a VPN/private network or SFTP/FTPS for production.
+## Camera Wi-Fi / FTP ingestion
 
-**Important MVP limitation:** FTP receiver stores incoming files in `data/uploads` but does not automatically register them in the gallery index yet. For a real event, use the web uploader or implement the small ingestion/indexing bridge described below. Do not rely on FTP ingestion until that bridge is tested with your camera.
+The FTP receiver now watches an isolated inbox, waits until a file stops changing, moves supported photo/video files into the website media directory, and registers them in `data/media-index.json` for the configured event. The gallery auto-refreshes every 12 seconds, so newly ingested files should appear without reloading the page.
+
+### Configure a camera receiver
+
+1. Run the web app and create/use an event ID, for example `wedding-demo`.
+2. Copy `.env.example` to `.env`; set a strong unique `FTP_PASSWORD`, `FTP_EVENT_ID`, `FTP_USER`, and `FTP_ROOT`.
+3. Start the web app with `npm start`, then start the receiver separately with `npm run ftp`. These are two processes; use a process manager or two services in production.
+4. Configure the camera with the receiver's reachable host, FTP port, username/password, and upload directory `/`. Enable automatic FTP transfer if the camera supports it.
+5. For passive FTP across a firewall, open the control port and the configured passive range (`FTP_PASV_MIN`–`FTP_PASV_MAX`) and set `FTP_PASV_URL` to the receiver's public IP/DNS. Do not set it to `0.0.0.0`.
+6. Take a test JPEG and short video. Confirm both appear in `/?event=YOUR_EVENT_ID` and scan that event's QR code. Keep the camera card originals.
+
+### Hosting and security notes
+
+- **Hostinger shared Node.js hosting may not allow inbound custom ports or persistent extra processes.** If so, run the FTP receiver on a VPS or a laptop/mini-PC relay and send the files to the web app. The FTP receiver needs network reachability on its control and passive ports.
+- This example listens with **plain FTP**, which does not encrypt passwords or image/video data. Use it only on a trusted private network/VPN; for public internet, deploy a properly configured FTPS receiver or secure VPN. `ftp-srv` supports TLS configuration, but this sample does not configure certificates.
+- One receiver instance is configured for one `FTP_EVENT_ID`. For multiple simultaneous events, run separate receiver instances with separate users, inboxes, and event IDs, or implement per-user event mapping. Never share one event's credentials with another event.
+- The receiver supports JPEG/JPG, PNG, WebP, GIF, HEIC/HEIF, MP4, MOV, WebM and MKV by file extension. RAW camera files are not published in the gallery. Use JPEG+RAW or archive RAW separately.
+- The receiver only processes files once their size/modified time remains stable over multiple polling cycles. Camera temp filenames or unsupported extensions are ignored. Test your exact camera model/firmware before an event; Wi-Fi alone does not guarantee FTP capability.
+- For production scale, use object storage as primary media storage, with durable metadata, retries, thumbnail processing, monitoring and access control.
 
 ## Face-wise sorting / albums
 The UI includes a face-search panel, but **automated face matching is not implemented in this MVP**. Face matching requires a model, indexing pipeline, face embeddings and careful biometric privacy controls. Recommended production approach:
@@ -82,9 +95,17 @@ Deploy to a Node.js host with persistent storage or attach a persistent volume. 
 - `POST /api/upload/:eventId` — multipart form field `files`
 - `GET /api/qr/:eventId`
 - `POST /api/admin/events` — requires `x-admin-key` header
+- `GET /api/admin/status` — admin dashboard metrics and receiver heartbeat; requires `x-admin-key` header
+- `POST /api/admin/control` — body `{ "active": true|false }` and `x-admin-key` header; pauses/resumes FTP ingestion
 
 The public event IDs are currently guessable. Add event passwords or signed invite tokens before real private events.
 
+
+## Admin dashboard
+
+Open `https://YOUR-DOMAIN/admin.html` and enter the same `ADMIN_KEY` configured in the server environment. The dashboard shows website/FTP receiver connectivity, transfer totals, photos/videos, the last heartbeat, and recent files. It refreshes every 10 seconds. Use **Pause transfers** to stop registering incoming FTP files in the gallery while leaving them in the FTP inbox; **Activate transfers** resumes ingestion.
+
+The dashboard control file (`data/ftp-control.json`) and FTP status heartbeat (`data/ftp-status.json`) must be shared by the web server and FTP receiver on the same persistent filesystem for pause/resume and live status to work. If the receiver runs on a separate VPS or laptop, these local-file controls will not communicate across machines; use an authenticated remote control/status API or relay service instead. Configure a long random `ADMIN_KEY`, keep it out of GitHub, and use HTTPS.
 
 ## Camera-to-gallery workflow (important)
 

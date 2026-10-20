@@ -19,6 +19,8 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const DATA = path.join(__dirname, 'data');
 const UPLOADS = path.join(DATA, 'uploads');
 const EVENTS = path.join(DATA, 'events');
+const FTP_STATUS_PATH = path.join(DATA, 'ftp-status.json');
+const FTP_CONTROL_PATH = path.join(DATA, 'ftp-control.json');
 const MAX_FILE_MB = Number(process.env.MAX_FILE_MB || 250);
 for (const dir of [DATA, UPLOADS, EVENTS]) fs.mkdirSync(dir, { recursive: true });
 
@@ -78,6 +80,45 @@ async function backupToDrive(filePath, name, mimeType) {
 }
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'Cybercodix Instant Share', time: new Date().toISOString() }));
+
+function adminAuthorized(req) {
+  return Boolean(process.env.ADMIN_KEY) && req.get('x-admin-key') === process.env.ADMIN_KEY;
+}
+function readJsonFile(filePath, fallback) {
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return fallback; }
+}
+function writeJsonFile(filePath, value) {
+  const temp = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(value, null, 2));
+  fs.renameSync(temp, filePath);
+}
+app.get('/api/admin/status', (req, res) => {
+  if (!adminAuthorized(req)) return res.status(401).json({ error: 'Admin key is missing or invalid.' });
+  const items = readIndex();
+  const now = Date.now();
+  const dayAgo = now - 24 * 60 * 60 * 1000;
+  const recent = items.filter(x => Date.parse(x.uploadedAt || '') >= dayAgo);
+  const totalBytes = items.reduce((sum, x) => sum + (Number(x.size) || 0), 0);
+  const ftp = readJsonFile(FTP_STATUS_PATH, { state: 'unknown', lastHeartbeat: null, processed: 0, lastTransferAt: null, lastError: null });
+  const control = readJsonFile(FTP_CONTROL_PATH, { active: true });
+  const heartbeatAgeMs = ftp.lastHeartbeat ? now - Date.parse(ftp.lastHeartbeat) : Infinity;
+  const ftpConnected = Number.isFinite(heartbeatAgeMs) && heartbeatAgeMs < 45000;
+  res.json({
+    ok: true,
+    serverTime: new Date().toISOString(),
+    website: { status: 'online', uptimeSeconds: Math.round(process.uptime()) },
+    ftp: { connected: ftpConnected, status: ftpConnected ? (control.active === false ? 'paused' : 'connected') : 'offline', active: control.active !== false, lastHeartbeat: ftp.lastHeartbeat || null, lastTransferAt: ftp.lastTransferAt || null, processed: Number(ftp.processed) || 0, lastError: ftp.lastError || null },
+    transfers: { total: items.length, last24Hours: recent.length, photos: items.filter(x => x.kind === 'photo').length, videos: items.filter(x => x.kind === 'video').length, totalBytes, lastTransferAt: items[0]?.uploadedAt || null },
+    recent: items.slice(0, 12).map(x => ({ id: x.id, eventId: x.eventId, name: x.originalName || x.filename, kind: x.kind, size: Number(x.size) || 0, uploadedAt: x.uploadedAt, source: x.source || 'web' }))
+  });
+});
+app.post('/api/admin/control', (req, res) => {
+  if (!adminAuthorized(req)) return res.status(401).json({ error: 'Admin key is missing or invalid.' });
+  if (typeof req.body?.active !== 'boolean') return res.status(400).json({ error: 'Provide active: true or false.' });
+  const control = { active: req.body.active, updatedAt: new Date().toISOString() };
+  writeJsonFile(FTP_CONTROL_PATH, control);
+  res.json({ ok: true, ...control, message: req.body.active ? 'FTP ingestion activated.' : 'FTP ingestion paused.' });
+});
 
 app.get('/api/events/:eventId', (req, res) => {
   const items = readIndex().filter(x => x.eventId === req.params.eventId);
