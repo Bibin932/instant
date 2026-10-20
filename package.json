@@ -5,11 +5,13 @@
   "description": "Cybercodix instant event photo and video sharing MVP",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
+    "start": "node app.js",
     "dev": "node --watch server.js",
     "ftp": "node ftp-ingest.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
