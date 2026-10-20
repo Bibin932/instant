@@ -56,7 +56,6 @@ $('#searchInput').addEventListener('input',render); $('#sortSelect').addEventLis
 function chooseFiles(){ $('#fileInput').click(); }
 $('#uploadJump').onclick=()=>$('#uploadSection').scrollIntoView({behavior:'smooth'});
 $('#emptyUpload').onclick=()=>{ $('#uploadSection').scrollIntoView({behavior:'smooth'}); chooseFiles(); };
-$('#uploadBtn').onclick=chooseFiles;
 $('#fileInput').addEventListener('change',()=>{const files=[...$('#fileInput').files];$('#uploadQueue').textContent=files.length?`${files.length} file(s) selected · ${(files.reduce((n,f)=>n+f.size,0)/1024/1024).toFixed(1)} MB total`:'';$('#uploadBtn').textContent=files.length?'Upload '+files.length+' file(s)':'Choose photos & videos';});
 const drop=$('#dropzone');
 drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('dragover');});
