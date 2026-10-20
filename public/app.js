@@ -1,4 +1,3 @@
-import './server.js';
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
 const eventId = params.get('event') || 'wedding-demo';
