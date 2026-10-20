@@ -46,6 +46,10 @@
           <p class="small-note">This control requires the separate FTP receiver process to be running. It does not start or stop the receiver process itself.</p>
         </section>
       </div>
+      <section class="panel admin-upload-panel"><div class="panel-heading"><div><p class="eyebrow">MANUAL MEDIA MANAGEMENT</p><h2>Add photos & videos</h2></div><span class="pill online">Admin only</span></div>
+        <p class="small-note">Files added here appear in the selected event gallery. Public visitors cannot upload from the main site.</p>
+        <form id="admin-upload-form" class="admin-upload-form"><label for="upload-event-id">Event ID</label><input id="upload-event-id" required value="wedding-demo" placeholder="e.g. wedding-demo"><label for="admin-files">Select photos and videos</label><input id="admin-files" type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple required><button id="admin-upload-btn" class="primary" type="submit">Upload to event gallery</button><p id="admin-upload-status" class="control-message" role="status"></p></form>
+      </section>
       <section class="panel transfer-panel"><div class="panel-heading"><div><p class="eyebrow">ACTIVITY</p><h2>Recent transfers</h2></div><div class="total-size">Storage represented <strong id="total-size">—</strong></div></div>
         <div class="table-wrap"><table><thead><tr><th>File</th><th>Type</th><th>Event ID</th><th>Source</th><th>Size</th><th>Received</th></tr></thead><tbody id="recent-body"><tr><td colspan="6" class="empty">No data yet.</td></tr></tbody></table></div>
       </section>
