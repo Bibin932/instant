@@ -81,4 +81,23 @@
   }
   $('#pause-btn').addEventListener('click', () => setActive(false));
   $('#activate-btn').addEventListener('click', () => setActive(true));
+
+  $('#admin-upload-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const eventId = $('#upload-event-id').value.trim();
+    const files = $('#admin-files').files;
+    if (!eventId || !files.length) return;
+    const button = $('#admin-upload-btn');
+    button.disabled = true; $('#admin-upload-status').textContent = `Uploading ${files.length} file(s)…`;
+    const form = new FormData(); for (const file of files) form.append('files', file);
+    try {
+      const response = await fetch(`/api/admin/upload/${encodeURIComponent(eventId)}`, { method: 'POST', headers: { 'x-admin-key': state.key }, body: form, cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) throw new Error('Admin key is invalid or the server ADMIN_KEY is not configured.');
+      if (!response.ok) throw new Error(data.error || `Upload failed (${response.status})`);
+      $('#admin-upload-status').textContent = `✓ ${data.uploaded} file(s) added to event “${eventId}”.`;
+      $('#admin-files').value = ''; toast(`${data.uploaded} file(s) uploaded successfully.`); await refresh();
+    } catch (err) { $('#admin-upload-status').textContent = err.message; toast(err.message, true); }
+    finally { button.disabled = false; }
+  });
 })();
