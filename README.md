@@ -125,3 +125,12 @@ The web uploader stores the uploaded file bytes without resizing or recompressin
 ### Camera compatibility checklist
 
 Before an event, check the exact camera model's manual for FTP transfer, wireless transmitter/app support, video transfer support, and whether it can transfer automatically after each shot. Some camera Wi-Fi functions only transfer selected JPEGs or require a manufacturer app; not every model supports automatic FTP or video transfer. Test a full-resolution JPEG and a short video before relying on it at an event.
+
+
+## Guest face search and admin-only uploads
+
+- The public gallery has no upload form. Manual uploads are available only in `/admin.html` after authenticating with the server-side `ADMIN_KEY`.
+- The protected upload endpoint is `POST /api/admin/upload/:eventId` and requires the `x-admin-key` header. The old public upload endpoint is removed.
+- Guests can choose/capture a selfie and search for likely matching gallery photos. Face detection/descriptor comparison runs in the guest browser using face-api.js and its model files from public CDNs. The selfie is not posted to this server. An explicit consent checkbox is required.
+- Face search currently scans the loaded event's photos in the browser each time, so large galleries may be slow. It does not match faces inside videos. Model loading requires internet access to the configured CDNs. For production, consider self-hosting and pinning the model assets and adding a server-side indexed workflow only with explicit consent and an appropriate retention policy.
+- Face matches are probabilistic and can be wrong; do not use them for identity verification or access control.

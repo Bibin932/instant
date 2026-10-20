@@ -125,32 +125,27 @@ app.get('/api/events/:eventId', (req, res) => {
   res.json({ eventId: req.params.eventId, items: items.map(publicItem) });
 });
 
-app.post('/api/upload/:eventId', upload.array('files', 20), async (req, res) => {
+app.post('/api/admin/upload/:eventId', (req, res, next) => {
+  if (!adminAuthorized(req)) return res.status(401).json({ error: 'Admin key is missing or invalid.' });
+  next();
+}, upload.array('files', 20), async (req, res) => {
   const eventId = String(req.params.eventId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
   if (!eventId) return res.status(400).json({ error: 'Invalid event ID.' });
   if (!req.files?.length) return res.status(400).json({ error: 'Choose at least one photo or video.' });
-
   const index = readIndex();
   const added = [];
   for (const f of req.files) {
     const item = {
-      id: randomUUID(),
-      eventId,
-      filename: f.filename,
-      originalName: safeName(f.originalname),
-      mimeType: f.mimetype,
-      kind: f.mimetype.startsWith('video/') ? 'video' : 'photo',
-      size: f.size,
-      uploadedAt: new Date().toISOString(),
-      driveBackup: null,
-      faceTags: []
+      id: randomUUID(), eventId, filename: f.filename,
+      originalName: safeName(f.originalname), mimeType: f.mimetype,
+      kind: f.mimetype.startsWith('video/') ? 'video' : 'photo', size: f.size,
+      uploadedAt: new Date().toISOString(), source: 'admin', driveBackup: null, faceTags: []
     };
     if (String(process.env.GOOGLE_DRIVE_BACKUP).toLowerCase() === 'true') {
       try { item.driveBackup = await backupToDrive(f.path, f.originalname, f.mimetype); }
       catch (err) { item.driveBackupError = err.message; }
     }
-    index.unshift(item);
-    added.push(publicItem(item));
+    index.unshift(item); added.push(publicItem(item));
   }
   writeIndex(index);
   res.status(201).json({ uploaded: added.length, items: added });
