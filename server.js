@@ -138,4 +138,10 @@ app.use((err, _req, res, _next) => {
   res.status(400).json({ error: err.message || 'Request failed.' });
 });
 
-app.listen(PORT, () => console.log(`Cybercodix Instant Share running at ${BASE_URL}`));
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Cybercodix Instant Share listening on port ${PORT}`);
+});
+
+server.on('error', (err) => {
+  console.error('Server startup error:', err);
+});
