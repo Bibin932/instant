@@ -23,15 +23,15 @@
   <main>
     <section class="hero">
       <div class="hero-copy">
-        <div class="eyebrow"><span class="spark">✦</span> EVERY MOMENT, IN REAL TIME</div>
-        <h1>Your memories.<br><span>One beautiful place.</span></h1>
-        <p class="hero-sub">Every smile, every little moment — delivered from the camera to your screen. No app. No waiting. Just memories.</p>
-        <div class="hero-cta"><button class="btn btn-primary" id="faceJump">◎ Find my photos with my face</button><button class="btn btn-ghost" id="qrJump">▦ Get event QR</button></div>
+        <div class="eyebrow"><span class="spark">✦</span> AI-POWERED EVENT PHOTO DELIVERY</div>
+        <h1>Every event has<br><span>a thousand moments.</span></h1>
+        <p class="hero-sub">One selfie finds your photos. Camera uploads flow into the event gallery, and guests get their memories through one simple QR code.</p>
+        <div class="hero-cta"><button class="btn btn-primary" id="faceJump">◎ Find my photos with AI</button><button class="btn btn-ghost" id="qrJump">▦ Get event QR</button></div>
         <div class="hero-proof"><span class="avatar-stack"><b>✦</b><b>♡</b><b>⌁</b></span><span>Made for moments that matter</span><span class="proof-divider"></span><span class="secure-label">⌑ Private by design</span></div>
       </div>
       <div class="hero-art" aria-label="Decorative photo collage">
         <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
-        <div class="art-card art-card-main"><img src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=85" alt="Wedding celebration"><span class="image-shade"></span><span class="art-caption"><small>THE WEDDING</small><strong>Forever starts here ♡</strong></span><span class="float-tag">✦ Just uploaded</span></div>
+        <div class="art-card art-card-main"><img src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=85" alt="Wedding celebration"><span class="image-shade"></span><span class="art-caption"><small>LIVE EVENT GALLERY</small><strong>Your moments, delivered ♡</strong></span><span class="float-tag">✦ AI-ready gallery</span></div>
         <div class="art-card art-card-small"><img src="https://images.unsplash.com/photo-1537633552985-df8429e8048b?auto=format&fit=crop&w=500&q=85" alt="Wedding couple"><span class="tiny-heart">♡</span></div>
         <div class="art-card art-card-mini"><img src="https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=500&q=85" alt="Wedding detail"></div>
         <div class="art-spark spark-one">✦</div><div class="art-spark spark-two">✧</div>
@@ -39,7 +39,7 @@
     </section>
 
     <section class="face-search-section" id="faceSearchSection">
-      <div class="face-search-copy"><div class="eyebrow">YOUR MOMENTS, FOUND</div><h2>Find photos <span>with your face.</span></h2><p>Take a selfie or choose a clear photo. We compare it with gallery photos in your browser to find likely matches.</p><small>Your selfie and face descriptors are processed locally in this browser and are not uploaded to the server. Results can be imperfect.</small></div>
+      <div class="face-search-copy"><div class="eyebrow">YOUR MOMENTS, FOUND</div><h2>One selfie.<br><span>Your moments.</span></h2><p>Take a selfie or choose a clear photo. AI face matching searches this event gallery for photos that may include you—without asking you to scroll through every image.</p><small>Face matching runs in your browser. Your selfie is not uploaded for matching. Results are estimates and can be incorrect.</small></div>
       <div class="face-search-card"><label for="selfieInput" class="face-file-label">Choose or capture a selfie</label><input type="file" id="selfieInput" accept="image/*" capture="user"><label class="privacy-consent"><input type="checkbox" id="faceConsent"> <span>I consent to use this photo for a one-time face match on this device.</span></label><button class="btn btn-primary" id="matchFaceBtn">Find my matching photos</button><button class="text-button hidden" id="clearFaceMatches">Show all gallery photos</button><p id="faceStatus" class="face-status" role="status">Choose a selfie to begin. Face models will load when you start.</p></div>
     </section>
 
@@ -49,13 +49,34 @@
     </section>
 
     <section class="gallery-section">
-      <div class="section-head"><div><div class="eyebrow">THE GOOD STUFF</div><h2>Every moment, <span>collected.</span></h2><p>All the candid smiles and unforgettable memories, together.</p></div>
+      <div class="section-head"><div><div class="eyebrow">THE GOOD STUFF</div><h2>The event, <span>in every frame.</span></h2><p>Browse the full gallery or use AI face search to find the moments you’re in.</p></div>
         <div class="view-controls"><button class="view-btn active" data-view="all">All moments</button><button class="view-btn" data-view="photo">Photos</button><button class="view-btn" data-view="video">Videos</button></div>
       </div>
       <div class="toolbar"><div class="searchbox"><span>⌕</span><input id="searchInput" placeholder="Search by file name..." aria-label="Search files"></div><div class="toolbar-right"><span class="sort-label">SORT BY</span><select id="sortSelect" aria-label="Sort gallery"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name A–Z</option></select></div></div>
       <div id="gallery" class="gallery-grid"></div>
       <div id="emptyState" class="empty-state"><div class="empty-icon">✧</div><h3>Your gallery is waiting</h3><p>New photos will appear here when the event administrator or connected camera adds them.</p></div>
       <div class="load-more-wrap"><button class="btn btn-outline hidden" id="loadMore">Load more moments</button></div>
+    </section>
+
+    <section class="how-section" aria-labelledby="howTitle">
+      <div class="section-head"><div><div class="eyebrow">SIMPLE FOR EVERY GUEST</div><h2 id="howTitle">From camera to <span>your pocket.</span></h2><p>A smooth experience for photographers, hosts and guests.</p></div></div>
+      <div class="how-grid">
+        <article class="how-card"><span class="step-number">01</span><div class="how-icon">↗</div><h3>Capture & transfer</h3><p>Send photos into the event workflow through the configured camera FTP receiver or the secure admin uploader.</p></article>
+        <article class="how-card"><span class="step-number">02</span><div class="how-icon">✧</div><h3>Find with AI</h3><p>Guests choose a selfie and run browser-based face matching against photos in the current event gallery.</p></article>
+        <article class="how-card"><span class="step-number">03</span><div class="how-icon">▦</div><h3>Scan & share</h3><p>One event QR opens the mobile-friendly gallery, where guests can view and save available memories.</p></article>
+      </div>
+    </section>
+
+    <section class="platform-section" aria-labelledby="platformTitle">
+      <div class="section-head"><div><div class="eyebrow">BUILT FOR LIVE EVENTS</div><h2 id="platformTitle">Everything connected. <span>One gallery.</span></h2><p>Core tools for a faster, more organized photo-delivery workflow.</p></div></div>
+      <div class="platform-grid">
+        <article class="platform-card"><span>◎</span><h3>AI face search</h3><p>Guests find likely matches from a selfie, with processing in their browser.</p></article>
+        <article class="platform-card"><span>⚡</span><h3>Camera workflow</h3><p>Connect an FTP-capable camera through a configured receiver and event destination.</p></article>
+        <article class="platform-card"><span>▦</span><h3>Event QR codes</h3><p>Create a direct route into each event gallery and download its QR code.</p></article>
+        <article class="platform-card"><span>▤</span><h3>Admin-only uploads</h3><p>Keep media uploads in the protected admin panel rather than the public gallery.</p></article>
+        <article class="platform-card"><span>◷</span><h3>Transfer monitoring</h3><p>Review transfer counts, recent files and receiver heartbeat from the admin dashboard.</p></article>
+        <article class="platform-card"><span>⌁</span><h3>Live gallery refresh</h3><p>Newly registered media appears automatically as the event gallery refreshes.</p></article>
+      </div>
     </section>
 
     <section class="qr-section" id="qrSection"><div class="qr-copy"><div class="eyebrow">ONE SCAN AWAY</div><h2>Let everyone in<br><span>on the memories.</span></h2><p>Put the event QR on tables, welcome boards or invitations. Guests scan once and keep coming back as new moments arrive.</p><div class="qr-benefits"><span>✦ Instant access</span><span>✦ No app download</span><span>✦ Works on mobile</span></div></div><div class="qr-card"><div class="qr-frame"><img id="qrImage" alt="QR code for this event" src=""><div id="qrPlaceholder" class="qr-placeholder">QR</div></div><strong>Scan. Smile. Save.</strong><p>Open this event gallery on your phone.</p><button class="btn btn-primary btn-small" id="downloadQr">↓ Download QR code</button><button class="text-button" id="copyLink">Copy gallery link</button></div></section>
