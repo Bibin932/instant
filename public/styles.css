@@ -79,3 +79,31 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .face-search-section{max-width:1184px;margin:0 auto 68px;padding:28px;display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:center;border:1px solid #4a4068;border-radius:22px;background:linear-gradient(125deg,#17182b,#111525)}
 .face-search-copy h2{font:700 clamp(30px,4vw,42px)/1.1 var(--display);letter-spacing:-1.8px;margin:0}.face-search-copy h2 span{background:linear-gradient(100deg,#b6a0ff,#ff9dce);color:transparent;background-clip:text;-webkit-background-clip:text}.face-search-copy p{font-size:13px;color:var(--muted);line-height:1.7}.face-search-copy small{font-size:10px;line-height:1.6;color:#8e96b1}.face-search-card{display:flex;flex-direction:column;gap:12px;padding:20px;border-radius:16px;background:#ffffff05;border:1px solid var(--line)}.face-file-label,.admin-upload-form label{font-size:12px;font-weight:700;color:#e8e5f8}.face-search-card input[type=file]{font-size:11px;max-width:100%;color:#aeb4c7}.privacy-consent{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:#b6bdd0;line-height:1.5}.privacy-consent input{margin-top:3px}.face-status{font-size:11px;color:#a9f3d6;min-height:18px;margin:0}.face-search-card button:disabled,.admin-upload-form button:disabled{opacity:.55;cursor:wait}
 @media(max-width:800px){.face-search-section{margin:0 20px 52px;padding:20px;grid-template-columns:1fr;gap:18px}}
+
+/* Momentra product refresh: original layout inspired by modern AI event platforms. */
+:root{--accent:#a99aff;--accent2:#ff9ecb}
+.topbar{max-width:1240px;margin:0 auto;padding:22px 28px}
+.brand strong{letter-spacing:-1.2px}
+.hero{max-width:1240px;min-height:570px;padding:72px 28px 58px;gap:44px}
+.hero h1{font-size:clamp(48px,6.5vw,78px);line-height:.99;letter-spacing:-4px;max-width:660px}
+.hero-sub{max-width:520px;font-size:16px;line-height:1.8}
+.btn-primary{box-shadow:0 12px 36px #a99aff24}
+.art-card-main{box-shadow:0 28px 90px #0007}
+.face-search-section{max-width:1184px;background:radial-gradient(ellipse at top right,#3a2b61 0%,#17182b 43%,#111525 100%);box-shadow:0 24px 90px #0003}
+.face-search-copy h2{font-size:clamp(34px,4vw,48px)}
+.event-strip,.gallery-section,.qr-section,.how-section,.platform-section{max-width:1184px;margin-left:auto;margin-right:auto}
+.how-section,.platform-section{padding:18px 24px 64px}
+.how-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.how-card,.platform-card{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#171a2c,#111421);padding:24px;min-height:190px}
+.how-card:after,.platform-card:after{content:"";position:absolute;width:150px;height:150px;right:-80px;top:-80px;border-radius:50%;background:#a99aff12;pointer-events:none}
+.step-number{font-size:11px;letter-spacing:2px;color:#a99aff;font-weight:800}
+.how-icon{margin:20px 0 14px;width:42px;height:42px;display:grid;place-items:center;border:1px solid #a99aff55;border-radius:13px;background:#a99aff12;color:#c5baff;font-size:23px}
+.how-card h3,.platform-card h3{font-family:var(--display);font-size:18px;letter-spacing:-.4px;margin:0 0 9px}
+.how-card p,.platform-card p{font-size:12px;line-height:1.75;color:var(--muted);margin:0;max-width:360px}
+.platform-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.platform-card{min-height:160px;padding:21px}
+.platform-card>span{display:inline-grid;place-items:center;width:36px;height:36px;margin-bottom:16px;border-radius:11px;background:#a99aff14;border:1px solid #a99aff44;color:#c5baff;font-size:19px}
+.qr-section{margin-top:18px}
+footer{max-width:1184px;margin:0 auto;padding-left:24px;padding-right:24px}
+@media(max-width:900px){.hero{padding-top:50px;min-height:unset}.hero h1{letter-spacing:-2.5px}.how-grid{grid-template-columns:1fr}.platform-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.how-section,.platform-section{padding-left:20px;padding-right:20px}}
+@media(max-width:560px){.topbar{padding:16px 18px}.hero{padding:40px 20px 38px;gap:28px}.hero h1{font-size:clamp(43px,12vw,58px);letter-spacing:-2.5px}.hero-sub{font-size:14px}.hero-cta{display:flex;flex-direction:column;align-items:stretch}.face-search-section{margin-left:12px;margin-right:12px;padding:19px}.platform-grid{grid-template-columns:1fr}.platform-card{min-height:unset}.how-section,.platform-section{padding-bottom:44px}.event-strip,.gallery-section,.qr-section{margin-left:14px;margin-right:14px}}
