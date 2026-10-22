@@ -64,53 +64,105 @@ async function loadQr(){
 $('#downloadQr').onclick=()=>{const img=$('#qrImage');if(!img.src||!img.dataset.url)return toast('QR code is not ready yet.');const a=document.createElement('a');a.href=img.src;a.download=`${eventId}-qr.png`;a.click();};
 $('#copyLink').onclick=async()=>{try{await navigator.clipboard.writeText($('#qrImage').dataset.url||location.href);toast('Gallery link copied!');}catch{toast('Copy this link: '+location.href);}};
 $('#shareBtn').onclick=async()=>{const url=$('#qrImage').dataset.url||location.href;try{if(navigator.share)await navigator.share({title:$('#eventTitle').textContent+' gallery',text:'View and share the event photos',url});else{await navigator.clipboard.writeText(url);toast('Gallery link copied!');}}catch(e){if(e.name!=='AbortError')toast('Share the gallery link from your browser.');}};
-// Face matching runs locally in the guest's browser. The selfie and descriptors are never sent to the server.
-$('#faceJump').onclick=()=>$('#faceSearchSection').scrollIntoView({behavior:'smooth',block:'center'});
-$('#clearFaceMatches').onclick=()=>{faceMatches=null;$('#clearFaceMatches').classList.add('hidden');$('#faceStatus').textContent='Showing all event photos.';render();};
-async function ensureFaceModels(){
-  if(faceModelsReady)return;
-  if(!window.faceapi)throw new Error('Face recognition library could not load. Check your internet connection and refresh.');
-  const modelUrl='https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-  $('#faceStatus').textContent='Loading face recognition models… this may take a moment on first use.';
-  await Promise.all([
-    faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
-    faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
-    faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl)
-  ]);
-  faceModelsReady=true;
-}
-function loadImage(url){return new Promise((resolve,reject)=>{const img=new Image();img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('Could not read a gallery image'));img.src=url;});}
-async function descriptorsFor(image){
-  const found=await faceapi.detectAllFaces(image,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.45})).withFaceLandmarks().withFaceDescriptors();
-  return found.map(x=>x.descriptor);
-}
-function distance(a,b){let sum=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d;}return Math.sqrt(sum);}
-$('#matchFaceBtn').onclick=async()=>{
-  const file=$('#selfieInput').files[0];
-  if(!file){$('#faceStatus').textContent='Please take or choose a selfie first.';return;}
-  if(!$('#faceConsent').checked){$('#faceStatus').textContent='Please confirm consent before running a face match.';return;}
-  if(!file.type.startsWith('image/')){$('#faceStatus').textContent='Please choose an image file.';return;}
-  $('#matchFaceBtn').disabled=true;$('#clearFaceMatches').classList.add('hidden');
-  try{
-    await ensureFaceModels();
-    const selfieUrl=URL.createObjectURL(file);
-    let selfieDescriptors=[];
-    try{const selfie=await loadImage(selfieUrl);selfieDescriptors=await descriptorsFor(selfie);}finally{URL.revokeObjectURL(selfieUrl);}
-    if(!selfieDescriptors.length)throw new Error('No clear face was detected. Try a front-facing selfie with good lighting.');
-    const reference=selfieDescriptors[0];
-    const photos=items.filter(x=>!isVideo(x));
-    const matches=new Set();let checked=0;
-    for(const item of photos){
-      try{const img=await loadImage(item.url);const descriptors=await descriptorsFor(img);if(descriptors.some(d=>distance(reference,d)<0.52))matches.add(item.id);}
-      catch(err){console.warn('Skipped face match for',item.originalName,err.message);}
-      checked++;
-      $('#faceStatus').textContent=`Checking gallery photos… ${checked} of ${photos.length}`;
-    }
-    faceMatches=matches;view='all';document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active',b.dataset.view==='all'));
-    render();$('#clearFaceMatches').classList.remove('hidden');
-    $('#faceStatus').textContent=`Found ${matches.size} likely match(es) from ${photos.length} gallery photo(s). This is an estimate, not a guaranteed identification.`;
-    document.querySelector('#gallery').scrollIntoView({behavior:'smooth',block:'start'});
-  }catch(err){$('#faceStatus').textContent=err.message||'Face matching failed. Please try another photo.';}
-  finally{$('#matchFaceBtn').disabled=false;}
+// Face matching runs locally in the guest's browser. 
+
+const selfieInput = $('#selfieInput');
+
+// Open the camera when the guest clicks the camera button.
+$('#selfieInput').setAttribute('capture', 'user');
+
+// Allow guests to select an existing selfie instead.
+$('#uploadSelfieBtn').onclick = () => {
+  selfieInput.removeAttribute('capture');
+  selfieInput.click();
 };
-loadGallery();loadQr();setInterval(loadGallery,12000);
+
+// Restore camera capture when the camera button is clicked.
+$('.camera-button').onclick = () => {
+  selfieInput.setAttribute('capture', 'user');
+  selfieInput.click();
+};
+
+
+$('#faceJump').onclick = () =>
+  $('#faceSearchSection').scrollIntoView({
+    behavior: 'smooth',
+    block: 'center'
+  });
+
+$('#clearFaceMatches').onclick = () => {
+  faceMatches = null;
+  $('#clearFaceMatches').classList.add('hidden');
+  $('#faceStatus').textContent = 'Showing all event photos.';
+  render();
+};
+
+$('#matchFaceBtn').onclick = async () => {
+  const file = $('#selfieInput').files[0];
+
+  if (!file) {
+    $('#faceStatus').textContent = 'Please take or choose a selfie first.';
+    return;
+  }
+
+  if (!$('#faceConsent').checked) {
+    $('#faceStatus').textContent =
+      'Please consent before sending your selfie for face matching.';
+    return;
+  }
+
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    $('#faceStatus').textContent =
+      'Please choose a JPEG, PNG, or WebP image.';
+    return;
+  }
+
+  $('#matchFaceBtn').disabled = true;
+  $('#clearFaceMatches').classList.add('hidden');
+  $('#faceStatus').textContent = 'Searching for matching event photos…';
+
+  try {
+    const form = new FormData();
+    form.append('selfie', file);
+
+    const response = await fetch(
+      `/api/events/${encodeURIComponent(eventId)}/search`,
+      {
+        method: 'POST',
+        body: form
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Face search failed.');
+    }
+
+    faceMatches = new Set(
+      (data.matches || []).map(item => item.id)
+    );
+
+    view = 'all';
+    document.querySelectorAll('.view-btn').forEach(button => {
+      button.classList.toggle('active', button.dataset.view === 'all');
+    });
+
+    render();
+    $('#clearFaceMatches').classList.remove('hidden');
+
+    $('#faceStatus').textContent =
+      `Found ${faceMatches.size} likely match(es). ` +
+      'Results are estimates, not guaranteed identifications.';
+
+    $('#gallery').scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+  } catch (error) {
+    $('#faceStatus').textContent =
+      error.message || 'Face search failed. Please try again.';
+  } finally {
+    $('#matchFaceBtn').disabled = false;
+  }
+};
