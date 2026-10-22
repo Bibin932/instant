@@ -1,145 +1,138 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090b16">
-  <meta name="description" content="Instant event photo and video sharing by Cybercodix. Scan, discover and relive every moment.">
-  <title>Momentra — Instant Event Gallery by Cybercodix</title>
+  <meta name="description" content="Scan a selfie and instantly find your photos from the event.">
+  <title>Momentra — Find your photos</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/guest.css">
 </head>
 <body>
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+
   <header class="topbar">
     <a class="brand" href="/" aria-label="Momentra home">
       <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="7" width="26" height="20" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="17" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 7l2-3h8l2 3" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>
       <span><strong>momentra<span class="brand-dot">.</span></strong><small>BY CYBERCODIX</small></span>
     </a>
-    <div class="top-actions"><span class="live-pill"><i></i> LIVE GALLERY</span><button class="btn btn-outline" id="shareBtn"><span>↗</span> Share</button></div>
+    <div class="top-actions"><span class="live-pill"><i></i> LIVE</span><button class="btn btn-outline btn-small" id="shareBtn" type="button">↗ Share</button></div>
   </header>
 
   <main>
-    <section class="hero">
-      <div class="hero-copy">
-        <div class="eyebrow"><span class="spark">✦</span> AI-POWERED EVENT PHOTO DELIVERY</div>
-        <h1>Every event has<br><span>a thousand moments.</span></h1>
-        <p class="hero-sub">One selfie finds your photos. Camera uploads flow into the event gallery, and guests get their memories through one simple QR code.</p>
-        <div class="hero-cta"><button class="btn btn-primary" id="faceJump">◎ Find my photos with AI</button><button class="btn btn-ghost" id="qrJump">▦ Get event QR</button></div>
-        <div class="hero-proof"><span class="avatar-stack"><b>✦</b><b>♡</b><b>⌁</b></span><span>Made for moments that matter</span><span class="proof-divider"></span><span class="secure-label">⌑ Private by design</span></div>
+    <!-- SCREEN 1: selfie scan (what guests see after scanning the QR) -->
+    <section id="gate" class="gate">
+      <div class="gate-intro">
+        <div class="eyebrow"><span class="spark">✦</span> <span id="gateEvent">THE CELEBRATION</span></div>
+        <h1>Let's find<br><span>your moments.</span></h1>
+        <p>Take one quick selfie. Our AI sorts every photo you're in into your own private album.</p>
+        <ol class="gate-steps">
+          <li><b>1</b> Scan your face</li>
+          <li><b>2</b> AI finds your photos</li>
+          <li><b>3</b> Save your album</li>
+        </ol>
       </div>
-      <div class="hero-art" aria-label="Decorative photo collage">
-        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
-        <div class="art-card art-card-main"><img src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=85" alt="Wedding celebration"><span class="image-shade"></span><span class="art-caption"><small>LIVE EVENT GALLERY</small><strong>Your moments, delivered ♡</strong></span><span class="float-tag">✦ AI-ready gallery</span></div>
-        <div class="art-card art-card-small"><img src="https://images.unsplash.com/photo-1537633552985-df8429e8048b?auto=format&fit=crop&w=500&q=85" alt="Wedding couple"><span class="tiny-heart">♡</span></div>
-        <div class="art-card art-card-mini"><img src="https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=500&q=85" alt="Wedding detail"></div>
-        <div class="art-spark spark-one">✦</div><div class="art-spark spark-two">✧</div>
+
+      <div class="scan-card">
+        <div class="stage" id="stage">
+          <video id="camVideo" autoplay playsinline muted></video>
+          <img id="selfiePreview" alt="Your selfie" class="hidden">
+          <div class="face-guide" aria-hidden="true"></div>
+          <div class="scan-line" aria-hidden="true"></div>
+          <div class="stage-idle" id="stageIdle"><div class="idle-icon">◎</div><p>Your camera preview will appear here</p></div>
+          <div class="stage-busy hidden" id="stageBusy"><div class="spinner"></div><strong>Finding your moments…</strong><span>This takes a few seconds</span></div>
+        </div>
+
+        <p id="faceStatus" class="face-status" role="status">Center your face in the oval, in good light.</p>
+
+        <div class="scan-actions">
+          <button class="btn btn-primary btn-wide" id="cameraBtn" type="button">📷 Open camera</button>
+          <button class="btn btn-primary btn-wide hidden" id="captureBtn" type="button">● Capture selfie</button>
+          <button class="btn btn-primary btn-wide hidden" id="searchBtn" type="button">✦ Find my photos</button>
+          <button class="btn btn-ghost btn-wide hidden" id="retakeBtn" type="button">↺ Retake</button>
+        </div>
+
+        <label class="privacy-consent">
+          <input type="checkbox" id="faceConsent">
+          <span>I consent to sending my selfie to this event's face-matching service to find my photos. It is not kept in my album.</span>
+        </label>
+
+        <div class="scan-links">
+          <button class="text-button" id="uploadSelfieBtn" type="button">Choose a photo instead</button>
+          <span>•</span>
+          <button class="text-button" id="skipBtn" type="button">Skip &amp; browse all</button>
+        </div>
+        <input type="file" id="selfieInput" accept="image/jpeg,image/png,image/webp" capture="user" hidden>
       </div>
     </section>
 
-   
-<section class="face-search-section" id="faceSearchSection">
-  <div class="face-search-copy">
-    <div class="eyebrow">YOUR MOMENTS, FOUND</div>
-    <h2>One selfie.<br><span>Your moments.</span></h2>
-    <p>
-      Take a selfie with your camera to find photos that may include you
-      in this event gallery.
-    </p>
-    <small>
-      Your selfie is sent to the face-matching service only after you
-      consent and start the search. Results may be inaccurate.
-    </small>
-  </div>
-
-  <div class="face-search-card">
-    <div class="camera-first">
-      <div class="camera-icon">📸</div>
-      <h3>Find your photos</h3>
-      <p>Take a fresh selfie or choose a photo from your device.</p>
-
-      <label for="selfieInput" class="btn btn-primary camera-button">
-        📷 Open Camera
-      </label>
-
-      <input
-        type="file"
-        id="selfieInput"
-        accept="image/jpeg,image/png,image/webp"
-        capture="user"
-      >
-
-      <label class="privacy-consent">
-        <input type="checkbox" id="faceConsent">
-        <span>
-          I consent to send this selfie to the event's face-matching
-          service to find matching photos.
-        </span>
-      </label>
-
-      <button class="btn btn-primary" id="matchFaceBtn">
-        Find my matching photos
-      </button>
-
-      <button class="text-button" id="uploadSelfieBtn" type="button">
-        Choose an existing selfie instead
-      </button>
-
-      <button class="text-button hidden" id="clearFaceMatches">
-        Show all gallery photos
-      </button>
-
-      <p id="faceStatus" class="face-status" role="status">
-        Open the camera or choose a selfie to begin.
-      </p>
-    </div>
-  </div>
-</section>
-
-
-    <section class="event-strip">
-      <div class="event-heading"><div class="event-icon">✧</div><div><small>YOU'RE VIEWING</small><h2 id="eventTitle">The Celebration</h2></div></div>
-      <div class="event-stats"><div><strong id="photoCount">0</strong><span>Moments shared</span></div><div class="stat-divider"></div><div><strong id="videoCount">0</strong><span>Videos</span></div><div class="stat-divider"></div><div class="live-status"><i></i><span>Updating live</span></div></div>
-    </section>
-
-    <section class="gallery-section">
-      <div class="section-head"><div><div class="eyebrow">THE GOOD STUFF</div><h2>The event, <span>in every frame.</span></h2><p>Browse the full gallery or use AI face search to find the moments you’re in.</p></div>
-        <div class="view-controls"><button class="view-btn active" data-view="all">All moments</button><button class="view-btn" data-view="photo">Photos</button><button class="view-btn" data-view="video">Videos</button></div>
+    <!-- SCREEN 2: personal album + full gallery -->
+    <section id="album" class="album hidden">
+      <div class="album-head">
+        <div class="me">
+          <div class="me-avatar" id="meAvatar">☺</div>
+          <div>
+            <small id="albumEvent">THE CELEBRATION</small>
+            <h2 id="albumTitle">Your album</h2>
+            <p id="albumSub">—</p>
+          </div>
+        </div>
+        <div class="album-actions">
+          <button class="btn btn-primary btn-small" id="saveAllBtn" type="button">↓ Save all</button>
+          <button class="btn btn-ghost btn-small" id="rescanBtn" type="button">◎ Rescan face</button>
+        </div>
       </div>
-      <div class="toolbar"><div class="searchbox"><span>⌕</span><input id="searchInput" placeholder="Search by file name..." aria-label="Search files"></div><div class="toolbar-right"><span class="sort-label">SORT BY</span><select id="sortSelect" aria-label="Sort gallery"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name A–Z</option></select></div></div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" role="tab" data-tab="mine" id="tabMine">My album <b id="mineCount">0</b></button>
+        <button class="tab" role="tab" data-tab="all" id="tabAll">All photos <b id="allCount">0</b></button>
+      </div>
+
+      <div class="subbar">
+        <div class="chips" id="typeChips">
+          <button class="chip active" data-view="all">All</button>
+          <button class="chip" data-view="photo">Photos</button>
+          <button class="chip" data-view="video">Videos</button>
+        </div>
+        <select id="sortSelect" aria-label="Sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>
+      </div>
+
       <div id="gallery" class="gallery-grid"></div>
-      <div id="emptyState" class="empty-state"><div class="empty-icon">✧</div><h3>Your gallery is waiting</h3><p>New photos will appear here when the event administrator or connected camera adds them.</p></div>
-      <div class="load-more-wrap"><button class="btn btn-outline hidden" id="loadMore">Load more moments</button></div>
-    </section>
 
-    <section class="how-section" aria-labelledby="howTitle">
-      <div class="section-head"><div><div class="eyebrow">SIMPLE FOR EVERY GUEST</div><h2 id="howTitle">From camera to <span>your pocket.</span></h2><p>A smooth experience for photographers, hosts and guests.</p></div></div>
-      <div class="how-grid">
-        <article class="how-card"><span class="step-number">01</span><div class="how-icon">↗</div><h3>Capture & transfer</h3><p>Send photos into the event workflow through the configured camera FTP receiver or the secure admin uploader.</p></article>
-        <article class="how-card"><span class="step-number">02</span><div class="how-icon">✧</div><h3>Find with AI</h3><p>Guests choose a selfie and run browser-based face matching against photos in the current event gallery.</p></article>
-        <article class="how-card"><span class="step-number">03</span><div class="how-icon">▦</div><h3>Scan & share</h3><p>One event QR opens the mobile-friendly gallery, where guests can view and save available memories.</p></article>
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon" id="emptyIcon">✧</div>
+        <h3 id="emptyTitle">Nothing here yet</h3>
+        <p id="emptyText">New photos appear here automatically.</p>
+        <button class="btn btn-primary btn-small hidden" id="emptyAction" type="button">◎ Try another selfie</button>
       </div>
-    </section>
 
-    <section class="platform-section" aria-labelledby="platformTitle">
-      <div class="section-head"><div><div class="eyebrow">BUILT FOR LIVE EVENTS</div><h2 id="platformTitle">Everything connected. <span>One gallery.</span></h2><p>Core tools for a faster, more organized photo-delivery workflow.</p></div></div>
-      <div class="platform-grid">
-        <article class="platform-card"><span>◎</span><h3>AI face search</h3><p>Guests find likely matches from a selfie, with processing in their browser.</p></article>
-        <article class="platform-card"><span>⚡</span><h3>Camera workflow</h3><p>Connect an FTP-capable camera through a configured receiver and event destination.</p></article>
-        <article class="platform-card"><span>▦</span><h3>Event QR codes</h3><p>Create a direct route into each event gallery and download its QR code.</p></article>
-        <article class="platform-card"><span>▤</span><h3>Admin-only uploads</h3><p>Keep media uploads in the protected admin panel rather than the public gallery.</p></article>
-        <article class="platform-card"><span>◷</span><h3>Transfer monitoring</h3><p>Review transfer counts, recent files and receiver heartbeat from the admin dashboard.</p></article>
-        <article class="platform-card"><span>⌁</span><h3>Live gallery refresh</h3><p>Newly registered media appears automatically as the event gallery refreshes.</p></article>
-      </div>
+      <p class="live-note"><i></i> Updating live — new photos are added to your album automatically.</p>
     </section>
-
-    <section class="qr-section" id="qrSection"><div class="qr-copy"><div class="eyebrow">ONE SCAN AWAY</div><h2>Let everyone in<br><span>on the memories.</span></h2><p>Put the event QR on tables, welcome boards or invitations. Guests scan once and keep coming back as new moments arrive.</p><div class="qr-benefits"><span>✦ Instant access</span><span>✦ No app download</span><span>✦ Works on mobile</span></div></div><div class="qr-card"><div class="qr-frame"><img id="qrImage" alt="QR code for this event" src=""><div id="qrPlaceholder" class="qr-placeholder">QR</div></div><strong>Scan. Smile. Save.</strong><p>Open this event gallery on your phone.</p><button class="btn btn-primary btn-small" id="downloadQr">↓ Download QR code</button><button class="text-button" id="copyLink">Copy gallery link</button></div></section>
   </main>
 
-  <footer><a class="brand footer-brand" href="#"><span class="brand-mark">✦</span><span><strong>momentra<span class="brand-dot">.</span></strong><small>BY CYBERCODIX</small></span></a><span>Made for moments that matter.</span><span>© <span id="year"></span> Cybercodix</span></footer>
+  <footer><span>© <span id="year"></span> Cybercodix · Momentra</span><span>Face matches are estimates, not guaranteed identifications.</span></footer>
+
+  <!-- Share / QR sheet -->
+  <div id="shareSheet" class="sheet hidden">
+    <div class="sheet-card">
+      <button class="sheet-close" id="sheetClose" aria-label="Close">×</button>
+      <strong>Share this gallery</strong>
+      <div class="qr-frame"><img id="qrImage" alt="QR code for this event" src=""><div id="qrPlaceholder" class="qr-placeholder">QR</div></div>
+      <p>Anyone who scans this opens the selfie screen.</p>
+      <button class="btn btn-primary btn-small" id="downloadQr" type="button">↓ Download QR</button>
+      <button class="text-button" id="copyLink" type="button">Copy gallery link</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status"></div>
-  <div id="lightbox" class="lightbox hidden"><button class="lightbox-close" id="lightboxClose" aria-label="Close">×</button><button class="lightbox-nav prev" id="prevMedia" aria-label="Previous">‹</button><div id="lightboxContent"></div><button class="lightbox-nav next" id="nextMedia" aria-label="Next">›</button><div id="lightboxCaption"></div></div>
-  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
+  <div id="lightbox" class="lightbox hidden">
+    <button class="lightbox-close" id="lightboxClose" aria-label="Close">×</button>
+    <button class="lightbox-nav prev" id="prevMedia" aria-label="Previous">‹</button>
+    <div id="lightboxContent"></div>
+    <button class="lightbox-nav next" id="nextMedia" aria-label="Next">›</button>
+    <div class="lightbox-bar"><span id="lightboxCaption"></span><a id="lightboxSave" class="btn btn-primary btn-small" download>↓ Save</a></div>
+  </div>
   <script src="/app.js" defer></script>
 </body></html>
