@@ -31,6 +31,7 @@ if (!eventId) {
   console.error('Set FTP_EVENT_ID to the event ID that should receive camera uploads.');
   process.exit(1);
 }
+
 for (const dir of [inbox, uploads, dataDir]) fs.mkdirSync(dir, { recursive: true });
 
 const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.mp4', '.mov', '.webm', '.mkv']);
@@ -53,6 +54,55 @@ function writeIndex(items) {
   fs.writeFileSync(temp, JSON.stringify(items, null, 2));
   fs.renameSync(temp, indexPath);
 }
+
+async function indexPhotoWithAI(item) {
+  if (item.kind !== 'photo') return;
+
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(item.mimeType)) {
+    return;
+  }
+
+  const token = process.env.AI_SERVICE_TOKEN;
+  const aiUrl = (process.env.AI_API_URL || 'http://127.0.0.1:8090')
+    .replace(/\/+$/, '');
+
+  if (!token) {
+    console.error('AI indexing skipped: AI_SERVICE_TOKEN is missing.');
+    return;
+  }
+
+  try {
+    const filePath = path.join(uploads, item.filename);
+    const bytes = await fs.promises.readFile(filePath);
+    const form = new FormData();
+
+    form.append('event_id', item.eventId);
+    form.append('media_id', item.id);
+    form.append(
+      'file',
+      new Blob([bytes], { type: item.mimeType }),
+      item.filename
+    );
+
+    const response = await fetch(`${aiUrl}/index`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+      body: form,
+      signal: AbortSignal.timeout(120000)
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.detail || `AI returned ${response.status}`);
+    }
+
+    console.log(`Camera photo submitted for AI indexing: ${item.id}`);
+  } catch (error) {
+    console.error(`AI indexing failed for ${item.id}:`, error.message);
+  }
+}
+
 async function findFiles(dir) {
   const found = [];
   for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
@@ -94,9 +144,11 @@ async function ingestStableFiles() {
         source: 'ftp-camera', driveBackup: null, faceTags: []
       };
       const index = readIndex();
-      index.unshift(item);
-      writeIndex(index);
-      knownFiles.delete(sourcePath);
+     index.unshift(item);
+writeIndex(index);
+knownFiles.delete(sourcePath);
+
+void indexPhotoWithAI(item);
       processedCount += 1;
       lastTransferAt = new Date().toISOString();
       lastError = null;
