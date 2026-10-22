@@ -49,6 +49,66 @@ function publicItem(item) {
   const { filename, ...rest } = item;
   return { ...rest, url: `/media/${encodeURIComponent(filename)}` };
 }
+const AI_API_URL = (process.env.AI_API_URL || 'http://127.0.0.1:8090').replace(/\/+$/, '');
+const AI_SERVICE_TOKEN = process.env.AI_SERVICE_TOKEN || '';
+
+async function callAI(path, form) {
+  if (!AI_SERVICE_TOKEN) throw new Error('AI_SERVICE_TOKEN is not configured');
+
+  const response = await fetch(`${AI_API_URL}${path}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${AI_SERVICE_TOKEN}` },
+    body: form,
+    signal: AbortSignal.timeout(120000)
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.detail || data.error || `AI service returned ${response.status}`);
+  }
+
+  return data;
+}
+
+async function indexPhotoWithAI(item) {
+  if (item.kind !== 'photo') return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(item.mimeType)) return;
+
+  const filePath = path.join(UPLOADS, item.filename);
+
+  try {
+    const bytes = await fs.promises.readFile(filePath);
+    const form = new FormData();
+
+    form.append('event_id', item.eventId);
+    form.append('media_id', item.id);
+    form.append('file', new Blob([bytes], { type: item.mimeType }), item.filename);
+
+    const result = await callAI('/index', form);
+
+    const index = readIndex();
+    const stored = index.find(x => x.id === item.id);
+
+    if (stored) {
+      stored.faceIndexStatus = result.status || (result.duplicate ? 'duplicate' : 'queued');
+      writeIndex(index);
+    }
+
+    console.log(`AI index submitted: ${item.id} (${result.status || 'queued'})`);
+  } catch (err) {
+    const index = readIndex();
+    const stored = index.find(x => x.id === item.id);
+
+    if (stored) {
+      stored.faceIndexStatus = 'failed';
+      stored.faceIndexError = err.message;
+      writeIndex(index);
+    }
+
+    console.error(`AI indexing failed for ${item.id}:`, err.message);
+  }
+}
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS),
   filename: (_req, file, cb) => cb(null, `${Date.now()}-${randomUUID()}-${safeName(file.originalname)}`)
@@ -124,6 +184,63 @@ app.get('/api/events/:eventId', (req, res) => {
   const items = readIndex().filter(x => x.eventId === req.params.eventId);
   res.json({ eventId: req.params.eventId, items: items.map(publicItem) });
 });
+const selfieUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
+    cb(allowed ? null : new Error('Use a JPEG, PNG, or WebP selfie.'), allowed);
+  }
+});
+
+app.post(
+  '/api/events/:eventId/search',
+  selfieUpload.single('selfie'),
+  async (req, res) => {
+    const eventId = String(req.params.eventId || '')
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .slice(0, 80);
+
+    if (!eventId) return res.status(400).json({ error: 'Invalid event ID.' });
+    if (!req.file) return res.status(400).json({ error: 'Please upload a selfie.' });
+
+    if (!AI_SERVICE_TOKEN) {
+      return res.status(503).json({ error: 'Face search is not configured.' });
+    }
+
+    try {
+      const form = new FormData();
+      form.append('event_id', eventId);
+      form.append(
+        'selfie',
+        new Blob([req.file.buffer], { type: req.file.mimetype }),
+        'selfie.' + ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[req.file.mimetype])
+      );
+
+      const result = await callAI('/search?limit=60', form);
+      const index = readIndex();
+      const matches = (result.matches || [])
+        .map(match => {
+          const item = index.find(
+            x => x.id === match.mediaId &&
+                 x.eventId === eventId &&
+                 x.kind === 'photo'
+          );
+
+          return item ? {
+            ...publicItem(item),
+            similarity: match.similarity
+          } : null;
+        })
+        .filter(Boolean);
+
+      res.json({ eventId, count: matches.length, matches });
+    } catch (err) {
+      console.error('AI selfie search failed:', err.message);
+      res.status(502).json({ error: 'Face search is temporarily unavailable. Please try again.' });
+    }
+  }
+);
 
 app.post('/api/admin/upload/:eventId', (req, res, next) => {
   if (!adminAuthorized(req)) return res.status(401).json({ error: 'Admin key is missing or invalid.' });
@@ -148,9 +265,15 @@ app.post('/api/admin/upload/:eventId', (req, res, next) => {
     index.unshift(item); added.push(publicItem(item));
   }
   writeIndex(index);
+
+  for (const item of index.slice(0, added.length)) {
+    if (item.kind === 'photo') {
+      void indexPhotoWithAI(item);
+    }
+  }
+
   res.status(201).json({ uploaded: added.length, items: added });
 });
-
 app.get('/api/qr/:eventId', async (req, res) => {
   const eventId = String(req.params.eventId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
   const url = `${BASE_URL}/?event=${encodeURIComponent(eventId)}`;
