@@ -38,10 +38,65 @@
       </div>
     </section>
 
-    <section class="face-search-section" id="faceSearchSection">
-      <div class="face-search-copy"><div class="eyebrow">YOUR MOMENTS, FOUND</div><h2>One selfie.<br><span>Your moments.</span></h2><p>Take a selfie or choose a clear photo. AI face matching searches this event gallery for photos that may include you—without asking you to scroll through every image.</p><small>Face matching runs in your browser. Your selfie is not uploaded for matching. Results are estimates and can be incorrect.</small></div>
-      <div class="face-search-card"><label for="selfieInput" class="face-file-label">Choose or capture a selfie</label><input type="file" id="selfieInput" accept="image/*" capture="user"><label class="privacy-consent"><input type="checkbox" id="faceConsent"> <span>I consent to use this photo for a one-time face match on this device.</span></label><button class="btn btn-primary" id="matchFaceBtn">Find my matching photos</button><button class="text-button hidden" id="clearFaceMatches">Show all gallery photos</button><p id="faceStatus" class="face-status" role="status">Choose a selfie to begin. Face models will load when you start.</p></div>
-    </section>
+   
+<section class="face-search-section" id="faceSearchSection">
+  <div class="face-search-copy">
+    <div class="eyebrow">YOUR MOMENTS, FOUND</div>
+    <h2>One selfie.<br><span>Your moments.</span></h2>
+    <p>
+      Take a selfie with your camera to find photos that may include you
+      in this event gallery.
+    </p>
+    <small>
+      Your selfie is sent to the face-matching service only after you
+      consent and start the search. Results may be inaccurate.
+    </small>
+  </div>
+
+  <div class="face-search-card">
+    <div class="camera-first">
+      <div class="camera-icon">📸</div>
+      <h3>Find your photos</h3>
+      <p>Take a fresh selfie or choose a photo from your device.</p>
+
+      <label for="selfieInput" class="btn btn-primary camera-button">
+        📷 Open Camera
+      </label>
+
+      <input
+        type="file"
+        id="selfieInput"
+        accept="image/jpeg,image/png,image/webp"
+        capture="user"
+      >
+
+      <label class="privacy-consent">
+        <input type="checkbox" id="faceConsent">
+        <span>
+          I consent to send this selfie to the event's face-matching
+          service to find matching photos.
+        </span>
+      </label>
+
+      <button class="btn btn-primary" id="matchFaceBtn">
+        Find my matching photos
+      </button>
+
+      <button class="text-button" id="uploadSelfieBtn" type="button">
+        Choose an existing selfie instead
+      </button>
+
+      <button class="text-button hidden" id="clearFaceMatches">
+        Show all gallery photos
+      </button>
+
+      <p id="faceStatus" class="face-status" role="status">
+        Open the camera or choose a selfie to begin.
+      </p>
+    </div>
+  </div>
+</section>
+
 
     <section class="event-strip">
       <div class="event-heading"><div class="event-icon">✧</div><div><small>YOU'RE VIEWING</small><h2 id="eventTitle">The Celebration</h2></div></div>
