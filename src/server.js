@@ -104,7 +104,7 @@ app.post('/api/chat', rateLimit, async (req, res) => {
 });
 
 async function answer(bot, sess, message, send, sessionId) {
-  const log = (a, ok) => db.run('INSERT INTO logs(bot_id,`session`,question,answer,answered,created_at) VALUES(?,?,?,?,?,?)', [bot.id, sessionId, message, a, ok ? 1 : 0, Date.now()]);
+  const log = (a, ok) => db.run('INSERT INTO logs(bot_id,session,question,answer,answered,created_at) VALUES(?,?,?,?,?,?)', [bot.id, sessionId, message, a, ok ? 1 : 0, Date.now()]);
   const fallback = bot.fallback || "I'm not sure about that. Could you rephrase, or contact our team?";
 
   const dayStart = new Date().setHours(0, 0, 0, 0);

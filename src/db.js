@@ -1,42 +1,63 @@
-// MySQL / MariaDB (create the database in aaPanel > Database, then fill DB_* in .env)
-const mysql = require('mysql2/promise');
-const c = require('./config').db;
+// PostgreSQL (works with Supabase). Set DATABASE_URL in .env.
+const { Pool, types } = require('pg');
+const url = require('./config').db.url;
 
-const pool = mysql.createPool({
-  host: c.host, port: c.port, user: c.user, password: c.password, database: c.database,
-  charset: 'utf8mb4', waitForConnections: true, connectionLimit: 10,
-});
+types.setTypeParser(20, (v) => Number(v)); // BIGINT/COUNT come back as numbers, not strings
 
-const run = async (sql, params = []) => (await pool.query(sql, params))[0];
-const all = run;
-const get = async (sql, params = []) => (await run(sql, params))[0];
+const local = /@(localhost|127\.0\.0\.1)/.test(url || '');
+const pool = new Pool({ connectionString: url, max: 10, ssl: local ? false : { rejectUnauthorized: false } });
+pool.on('error', (e) => console.error('db pool error:', e.message));
 
+// Lets the rest of the code write "?" placeholders: converts to $1, $2, ...
+const toPg = (sql) => { let i = 0; return sql.replace(/\?/g, () => `$${++i}`); };
+
+async function all(sql, params = []) {
+  return (await pool.query(toPg(sql), params)).rows;
+}
+async function get(sql, params = []) {
+  return (await all(sql, params))[0];
+}
+// INSERT/UPDATE/DELETE. For INSERT, returns { insertId } of the (first) new row.
+async function run(sql, params = []) {
+  const isInsert = /^\s*INSERT/i.test(sql) && !/RETURNING/i.test(sql);
+  const r = await pool.query(toPg(isInsert ? `${sql} RETURNING id` : sql), params);
+  return { insertId: isInsert ? r.rows[0]?.id : undefined, rowCount: r.rowCount };
+}
+// Bulk insert: rows = array of arrays matching cols
+async function insertMany(table, cols, rows) {
+  if (!rows.length) return;
+  const params = [];
+  const values = rows.map((row) => `(${row.map((v) => { params.push(v); return `$${params.length}`; }).join(',')})`);
+  await pool.query(`INSERT INTO ${table} (${cols.join(',')}) VALUES ${values.join(',')}`, params);
+}
+
+const tables = ['bots', 'sources', 'chunks', 'logs', 'leads'];
 const schema = [
   `CREATE TABLE IF NOT EXISTS bots(
-    id VARCHAR(40) PRIMARY KEY, name VARCHAR(255), system_prompt TEXT, welcome TEXT, color VARCHAR(20),
-    fallback TEXT NULL, allowed_origins TEXT, flows MEDIUMTEXT, created_at BIGINT
-  ) CHARACTER SET utf8mb4`,
+    id VARCHAR(40) PRIMARY KEY, name TEXT, system_prompt TEXT, welcome TEXT, color VARCHAR(20),
+    fallback TEXT, allowed_origins TEXT, flows TEXT, created_at BIGINT)`,
   `CREATE TABLE IF NOT EXISTS sources(
-    id INT AUTO_INCREMENT PRIMARY KEY, bot_id VARCHAR(40), type VARCHAR(20), name VARCHAR(1000), chunks INT, created_at BIGINT,
-    KEY idx_bot (bot_id)
-  ) CHARACTER SET utf8mb4`,
+    id SERIAL PRIMARY KEY, bot_id VARCHAR(40), type VARCHAR(20), name TEXT, chunks INT, created_at BIGINT)`,
   `CREATE TABLE IF NOT EXISTS chunks(
-    id INT AUTO_INCREMENT PRIMARY KEY, bot_id VARCHAR(40), source_id INT, text MEDIUMTEXT, embedding MEDIUMBLOB, model VARCHAR(120),
-    KEY idx_bot (bot_id), KEY idx_source (source_id)
-  ) CHARACTER SET utf8mb4`,
+    id SERIAL PRIMARY KEY, bot_id VARCHAR(40), source_id INT, text TEXT, embedding BYTEA, model VARCHAR(120))`,
   `CREATE TABLE IF NOT EXISTS logs(
-    id INT AUTO_INCREMENT PRIMARY KEY, bot_id VARCHAR(40), \`session\` VARCHAR(80), question TEXT, answer MEDIUMTEXT,
-    answered TINYINT, created_at BIGINT, KEY idx_bot_time (bot_id, created_at)
-  ) CHARACTER SET utf8mb4`,
+    id SERIAL PRIMARY KEY, bot_id VARCHAR(40), session VARCHAR(80), question TEXT, answer TEXT,
+    answered SMALLINT, created_at BIGINT)`,
   `CREATE TABLE IF NOT EXISTS leads(
-    id INT AUTO_INCREMENT PRIMARY KEY, bot_id VARCHAR(40), flow VARCHAR(80), data MEDIUMTEXT, created_at BIGINT,
-    KEY idx_bot (bot_id)
-  ) CHARACTER SET utf8mb4`,
+    id SERIAL PRIMARY KEY, bot_id VARCHAR(40), flow VARCHAR(80), data TEXT, created_at BIGINT)`,
+  `CREATE INDEX IF NOT EXISTS idx_sources_bot ON sources(bot_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_chunks_bot ON chunks(bot_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_logs_bot_time ON logs(bot_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_leads_bot ON leads(bot_id)`,
 ];
 
 async function init() {
-  if (!c.user || !c.database) throw new Error('Set DB_USER, DB_PASSWORD and DB_NAME in .env (create the database in aaPanel first)');
+  if (!url) throw new Error('Set DATABASE_URL in .env (Supabase dashboard > Connect)');
   for (const sql of schema) await pool.query(sql);
+  // Supabase exposes the public schema through its REST API. Turning on Row Level Security with no
+  // policies blocks that route; this server connects as the database owner, so it is unaffected.
+  for (const t of tables) await pool.query(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`);
 }
 
-module.exports = { run, all, get, init, pool };
+module.exports = { run, all, get, insertMany, init, pool, toPg };

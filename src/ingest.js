@@ -30,7 +30,7 @@ async function addSource(botId, type, name, text) {
   const src = await db.run('INSERT INTO sources(bot_id,type,name,chunks,created_at) VALUES(?,?,?,?,?)', [botId, type, name, pieces.length, Date.now()]);
   for (let i = 0; i < pieces.length; i += 100) {
     const rows = pieces.slice(i, i + 100).map((p, j) => [botId, src.insertId, p, rag.toBlob(vectors[i + j]), embedder.id]);
-    await db.run('INSERT INTO chunks(bot_id,source_id,text,embedding,model) VALUES ?', [rows]);
+    await db.insertMany('chunks', ['bot_id', 'source_id', 'text', 'embedding', 'model'], rows);
   }
   rag.invalidate(botId);
   return { id: src.insertId, name, chunks: pieces.length };
