@@ -1,7 +1,0 @@
-node_modules/
-.env
-google-service-account.json
-data/uploads/*
-data/events/*
-!data/uploads/.gitkeep
-!data/events/.gitkeep
