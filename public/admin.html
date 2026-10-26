@@ -1,1 +1,91 @@
-public
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chatbot admin</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1b1f24;--mute:#5d6671;--line:#dde1e6;--brand:#2b5cff}
+@media (prefers-color-scheme:dark){:root{--bg:#14171b;--card:#1c2025;--ink:#e8ebef;--mute:#9aa4af;--line:#323841;--brand:#6c8cff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:24px 16px 64px}h1{font-size:22px;margin:0 0 16px}h2{font-size:16px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+input,textarea,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:90px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+button{background:var(--brand);color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;cursor:pointer;margin-top:10px}
+button.ghost{background:none;color:var(--brand);border:1px solid var(--line)}button.danger{background:#c0392b}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.row{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.row>*{flex:1;min-width:160px}.row button{flex:0 0 auto}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+code,pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:13px}pre{padding:10px;overflow-x:auto;white-space:pre-wrap}
+#status{position:sticky;top:0;padding:8px 12px;border-radius:6px;margin-bottom:12px;display:none}#status.ok{display:block;background:#1f7a4d;color:#fff}#status.err{display:block;background:#c0392b;color:#fff}
+.hidden{display:none}
+</style></head>
+<body><main>
+<h1>Chatbot admin</h1>
+<div id="status" role="status"></div>
+
+<div class="card"><h2>Admin key</h2>
+  <div class="row"><div><input id="key" type="password" placeholder="ADMIN_KEY from your .env" aria-label="Admin key"></div><button id="save-key">Connect</button></div></div>
+
+<div id="app" class="hidden">
+<div class="card"><h2>Your bots</h2>
+  <div class="row"><div><label for="bots">Select a bot</label><select id="bots"></select></div>
+  <button id="del-bot" class="danger">Delete bot</button></div>
+  <label for="new-name">Create a new bot</label>
+  <div class="row"><div><input id="new-name" placeholder="Name, e.g. Acme Support"></div><button id="create">Create bot</button></div></div>
+
+<div id="bot" class="hidden">
+<div class="card"><h2>Add to your website</h2><pre id="embed"></pre></div>
+
+<div class="card"><h2>Knowledge</h2>
+  <label for="pdf">Upload a PDF</label><div class="row"><div><input id="pdf" type="file" accept="application/pdf"></div><button id="up-pdf">Upload PDF</button></div>
+  <label for="url">Add a web page</label><div class="row"><div><input id="url" placeholder="https://example.com/faq"></div>
+  <div style="flex:0 0 auto;min-width:0"><label style="display:flex;gap:6px;align-items:center;margin:0 0 8px"><input id="crawl" type="checkbox" style="width:auto"> Crawl linked pages</label></div><button id="add-url">Add page</button></div>
+  <label for="txt">Or paste text</label><textarea id="txt" style="font-family:inherit;font-size:14px"></textarea><button id="add-txt">Add text</button>
+  <h2 style="margin-top:18px">Sources</h2><table id="sources"></table></div>
+
+<div class="card"><h2>Bot settings</h2>
+  <label for="s-name">Name</label><input id="s-name">
+  <label for="s-welcome">Welcome message</label><input id="s-welcome">
+  <label for="s-prompt">Instructions for the bot</label><textarea id="s-prompt" style="font-family:inherit;font-size:14px"></textarea>
+  <label for="s-fallback">Reply when it has no answer</label><input id="s-fallback">
+  <div class="row"><div><label for="s-color">Color</label><input id="s-color" type="color" style="height:38px;padding:2px"></div>
+  <div><label for="s-origins">Allowed websites (comma separated, or *)</label><input id="s-origins"></div></div>
+  <label for="s-flows">Flows (JSON)</label><textarea id="s-flows" style="min-height:260px"></textarea>
+  <button id="save-bot">Save settings</button></div>
+
+<div class="card"><h2>Questions the bot could not answer</h2><table id="unanswered"></table></div>
+<div class="card"><h2>Leads from flows</h2><table id="leads"></table></div>
+</div></div>
+
+<script>
+const $=(id)=>document.getElementById(id);let KEY=sessionStorage.getItem('adminKey')||'';let bots=[];
+const esc=(s)=>String(s??'').replace(/[&<>"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function say(msg,ok=true){const s=$('status');s.textContent=msg;s.className=ok?'ok':'err';setTimeout(()=>s.className='',4000);}
+async function api(path,opt={}){const h={'x-admin-key':KEY,...(opt.body&&!(opt.body instanceof FormData)?{'content-type':'application/json'}:{})};
+  const r=await fetch('/api/admin'+path,{...opt,headers:h,body:opt.body instanceof FormData?opt.body:opt.body&&JSON.stringify(opt.body)});
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Request failed');return j;}
+const cur=()=>bots.find(b=>b.id===$('bots').value);
+async function loadBots(keep){bots=await api('/bots');$('bots').innerHTML=bots.map(b=>`<option value="${esc(b.id)}">${esc(b.name)} (${esc(b.id)})</option>`).join('');
+  if(keep)$('bots').value=keep;$('bot').classList.toggle('hidden',!bots.length);if(bots.length)await loadBot();}
+async function loadBot(){const b=cur();if(!b)return;
+  $('embed').textContent=`<script src="${location.origin}/widget.js" data-bot-id="${b.id}"><\/script>`;
+  $('s-name').value=b.name;$('s-welcome').value=b.welcome;$('s-prompt').value=b.system_prompt;$('s-fallback').value=b.fallback||'';
+  $('s-color').value=b.color||'#2b5cff';$('s-origins').value=b.allowed_origins;
+  try{$('s-flows').value=JSON.stringify(JSON.parse(b.flows),null,2)}catch{$('s-flows').value=b.flows}
+  const [src,un,leads]=await Promise.all([api(`/bots/${b.id}/sources`),api(`/bots/${b.id}/logs?unanswered=1`),api(`/bots/${b.id}/leads`)]);
+  $('sources').innerHTML=src.length?src.map(s=>`<tr><td>${esc(s.type)}</td><td>${esc(s.name)}</td><td>${s.chunks} chunks</td><td><button class="ghost" data-del="${s.id}">Remove</button></td></tr>`).join(''):'<tr><td>No sources yet. Upload a PDF or add a page above.</td></tr>';
+  $('unanswered').innerHTML=un.length?un.map(l=>`<tr><td>${esc(l.question)}</td><td>${new Date(l.created_at).toLocaleString()}</td></tr>`).join(''):'<tr><td>None yet.</td></tr>';
+  $('leads').innerHTML=leads.length?leads.map(l=>`<tr><td>${esc(l.flow)}</td><td>${esc(Object.entries(JSON.parse(l.data)).map(([k,v])=>k+': '+v).join(' | '))}</td><td>${new Date(l.created_at).toLocaleString()}</td></tr>`).join(''):'<tr><td>None yet.</td></tr>';}
+async function run(label,fn,btn){if(btn)btn.disabled=true;say(label+'...');try{await fn();say(label+' done');}catch(e){say(e.message,false)}if(btn)btn.disabled=false;}
+async function connect(){try{await loadBots();$('app').classList.remove('hidden');sessionStorage.setItem('adminKey',KEY);}catch(e){say(e.message,false)}}
+$('save-key').onclick=()=>{KEY=$('key').value;connect()};if(KEY){$('key').value=KEY;connect()}
+$('bots').onchange=loadBot;
+$('create').onclick=()=>run('Creating bot',async()=>{const b=await api('/bots',{method:'POST',body:{name:$('new-name').value||'Assistant'}});$('new-name').value='';await loadBots(b.id)});
+$('del-bot').onclick=()=>{if(confirm('Delete this bot and all its knowledge?'))run('Deleting bot',async()=>{await api('/bots/'+cur().id,{method:'DELETE'});await loadBots()})};
+$('up-pdf').onclick=(e)=>run('Indexing PDF',async()=>{const f=$('pdf').files[0];if(!f)throw new Error('Choose a PDF first');const fd=new FormData();fd.append('file',f);await api(`/bots/${cur().id}/pdf`,{method:'POST',body:fd});$('pdf').value='';await loadBot()},e.target);
+$('add-url').onclick=(e)=>run('Reading page',async()=>{await api(`/bots/${cur().id}/url`,{method:'POST',body:{url:$('url').value,crawl:$('crawl').checked}});$('url').value='';await loadBot()},e.target);
+$('add-txt').onclick=(e)=>run('Adding text',async()=>{await api(`/bots/${cur().id}/text`,{method:'POST',body:{text:$('txt').value}});$('txt').value='';await loadBot()},e.target);
+$('sources').onclick=(e)=>{const id=e.target.dataset.del;if(id)run('Removing source',async()=>{await api(`/bots/${cur().id}/sources/${id}`,{method:'DELETE'});await loadBot()})};
+$('save-bot').onclick=(e)=>run('Saving settings',async()=>{let flows;try{flows=JSON.parse($('s-flows').value)}catch{throw new Error('Flows is not valid JSON')}
+  const b=await api('/bots/'+cur().id,{method:'PUT',body:{name:$('s-name').value,welcome:$('s-welcome').value,system_prompt:$('s-prompt').value,fallback:$('s-fallback').value||null,color:$('s-color').value,allowed_origins:$('s-origins').value||'*',flows}});await loadBots(b.id)},e.target);
+</script></main></body></html>
