@@ -5,15 +5,15 @@ Works with a **paid API (Claude)** or a **zero-cost setup** (Groq/Gemini free ti
 
 ## aaPanel setup (VPS)
 
-1. **Database:** aaPanel > Database > Add database. Note the name, username and password. Keep host `127.0.0.1`, port `3306`.
+1. **Database (Supabase):** create a project at supabase.com, then click **Connect** and copy the **Session pooler** connection string (the direct connection is IPv6-only, which many VPS lack). Put it in `.env` as `DATABASE_URL`, replacing `[YOUR-PASSWORD]` with your database password. No aaPanel database is needed.
 2. **Node.js:** aaPanel > App Store > install **Node.js version manager** (and **PM2 manager**). Install Node 18 or newer (20 recommended).
 3. **Upload:** unzip the project into e.g. `/www/wwwroot/chatbot`, then run in a terminal:
    ```bash
    cd /www/wwwroot/chatbot
    npm install
-   cp .env.example .env && nano .env     # fill ADMIN_KEY, DB_*, and your LLM settings
+   cp .env.example .env && nano .env     # fill ADMIN_KEY, DATABASE_URL, and your LLM settings
    ```
-4. **Run:** add it in PM2 manager (startup file `src/server.js`, project dir above) or run `pm2 start src/server.js --name chatbot`. Tables are created automatically on first start.
+4. **Run:** add it in PM2 manager (startup file `src/server.js`, project dir above) or run `pm2 start src/server.js --name chatbot`. Tables are created automatically on first start, with Row Level Security turned on so Supabase's public API can't read your data.
 5. **Domain + HTTPS:** aaPanel > Website > Add site (e.g. `bot.yourdomain.com`) > Reverse proxy to `http://127.0.0.1:3000`, then enable SSL (Let's Encrypt). Turn **off** proxy caching, and if streaming looks choppy add `proxy_buffering off;` in the proxy's config.
 6. Open `https://bot.yourdomain.com/admin.html` and your embed snippet will use that domain.
 
@@ -47,7 +47,7 @@ If you change the embedding provider or model, re-add your sources (old vectors 
 
 ## How it works
 
-1. **Ingest:** PDF or web page, then text, then ~1200-character chunks, then embeddings stored in MySQL/MariaDB.
+1. **Ingest:** PDF or web page, then text, then ~1200-character chunks, then embeddings stored in PostgreSQL (Supabase).
 2. **Chat:** each message first checks **flows**. If none match, the bot embeds the question and finds the top matching chunks. The LLM answers from only those chunks, and the answer streams to the widget.
 3. **Saves money:** if nothing in the knowledge base matches (`MIN_SCORE`), the LLM is not called at all. The bot sends the fallback reply and the question appears in "unanswered" in the admin page. Repeat questions are served from a cache.
 
@@ -86,8 +86,8 @@ Edit them per bot in the admin page. Each flow is JSON:
 
 ## Deploying
 
-See "aaPanel setup" below. Any VPS with Node 18+ and MySQL/MariaDB works.
+See "aaPanel setup" below. Any VPS with Node 18+ works; the database is hosted by Supabase.
 
 ## Scaling later
 
-Vectors are searched in memory, which is fast up to roughly 50k chunks per bot. Beyond that, move `chunks` to Postgres + pgvector or Qdrant (only `src/rag.js` and `src/ingest.js` need to change).
+Vectors are searched in memory, which is fast up to roughly 50k chunks per bot. Beyond that, move `chunks` to Postgres + pgvector or Qdrant (only `src/rag.js` and `src/ingest.js` need to change). Supabase supports pgvector, so this is an easy upgrade later.
