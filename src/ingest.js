@@ -2,6 +2,9 @@ const db = require('./db');
 const embedder = require('./embeddings');
 const rag = require('./rag');
 
+// PostgreSQL rejects NUL (0x00) in text, and PDFs often contain it. Strip it and other control characters.
+const clean = (s) => String(s).replace(/\u0000/g, '').replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, ' ');
+
 function chunk(text, size = 1200, overlap = 150) {
   const units = text.replace(/\r/g, '').split(/(?<=[.!?])\s+|\n{2,}/).map((s) => s.trim()).filter(Boolean);
   const out = [];
@@ -24,7 +27,8 @@ function chunk(text, size = 1200, overlap = 150) {
 }
 
 async function addSource(botId, type, name, text) {
-  const pieces = chunk(text);
+  name = clean(name);
+  const pieces = chunk(clean(text));
   if (!pieces.length) throw new Error(`No readable text found in ${name}`);
   const vectors = await embedder.embed(pieces, 'document');
   const src = await db.run('INSERT INTO sources(bot_id,type,name,chunks,created_at) VALUES(?,?,?,?,?)', [botId, type, name, pieces.length, Date.now()]);
@@ -77,4 +81,4 @@ async function addUrl(botId, startUrl, { crawl = false, maxPages = 15 } = {}) {
   return added;
 }
 
-module.exports = { chunk, addSource, addUrl, pdfToText };
+module.exports = { clean, chunk, addSource, addUrl, pdfToText };

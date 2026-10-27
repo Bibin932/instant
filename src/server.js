@@ -64,7 +64,8 @@ app.get('/api/bots/:id/config', wrap(async (req, res) => {
 }));
 
 app.post('/api/chat', rateLimit, async (req, res) => {
-  const { botId, sessionId, message } = req.body || {};
+  const { botId, sessionId } = req.body || {};
+  const message = typeof req.body?.message === 'string' ? req.body.message.replace(/\u0000/g, '') : req.body?.message;
   const bot = botId && (await getBot(botId));
   if (!bot || !originOk(bot, req)) return res.status(404).json({ error: 'Bot not found' });
   if (typeof message !== 'string' || !message.trim() || message.length > 1000)
