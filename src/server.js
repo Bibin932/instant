@@ -200,17 +200,17 @@ admin.delete('/bots/:id/sources/:sid', wrap(async (req, res) => {
 admin.post('/bots/:id/pdf', upload.single('file'), wrap(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Attach a PDF as "file"' });
   const text = await ingest.pdfToText(req.file.buffer);
-  res.json(await ingest.addSource(req.params.id, 'pdf', req.file.originalname, text));
+  res.status(202).json(await ingest.queueText(req.params.id, 'pdf', req.file.originalname, text));
 }));
 admin.post('/bots/:id/url', wrap(async (req, res) => {
   const { url, crawl, maxPages } = req.body || {};
   if (!url) return res.status(400).json({ error: 'url is required' });
-  res.json(await ingest.addUrl(req.params.id, url, { crawl: !!crawl, maxPages: Math.min(+maxPages || 15, 100) }));
+  res.status(202).json(await ingest.queueUrl(req.params.id, url, { crawl: !!crawl, maxPages: Math.min(+maxPages || 15, 100) }));
 }));
 admin.post('/bots/:id/text', wrap(async (req, res) => {
   const { name, text } = req.body || {};
   if (!text) return res.status(400).json({ error: 'text is required' });
-  res.json(await ingest.addSource(req.params.id, 'text', name || 'Pasted text', text));
+  res.status(202).json(await ingest.queueText(req.params.id, 'text', name || 'Pasted text', text));
 }));
 
 admin.get('/bots/:id/logs', wrap(async (req, res) => {

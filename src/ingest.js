@@ -26,18 +26,39 @@ function chunk(text, size = 1200, overlap = 150) {
   return out.map((s) => s.trim()).filter((s) => s.length > 30);
 }
 
-async function addSource(botId, type, name, text) {
-  name = clean(name);
-  const pieces = chunk(clean(text));
-  if (!pieces.length) throw new Error(`No readable text found in ${name}`);
-  const vectors = await embedder.embed(pieces, 'document');
-  const src = await db.run('INSERT INTO sources(bot_id,type,name,chunks,created_at) VALUES(?,?,?,?,?)', [botId, type, name, pieces.length, Date.now()]);
-  for (let i = 0; i < pieces.length; i += 100) {
-    const rows = pieces.slice(i, i + 100).map((p, j) => [botId, src.insertId, p, rag.toBlob(vectors[i + j]), embedder.id]);
-    await db.insertMany('chunks', ['bot_id', 'source_id', 'text', 'embedding', 'model'], rows);
+// ---- background indexing (keeps HTTP requests short so proxies like Cloudflare don't time out) ----
+let queue = Promise.resolve();
+const enqueue = (job) => { queue = queue.then(job).catch((e) => console.error('ingest job error:', e.message)); };
+
+async function createSource(botId, type, name) {
+  const r = await db.run('INSERT INTO sources(bot_id,type,name,chunks,created_at,status) VALUES(?,?,?,?,?,?)', [botId, type, clean(name), 0, Date.now(), 'processing']);
+  return r.insertId;
+}
+const fail = (id, e) => {
+  console.error(`indexing source ${id} failed:`, e.message);
+  return db.run("UPDATE sources SET status = 'failed', error = ? WHERE id = ?", [clean(e.message).slice(0, 500), id]);
+};
+
+async function indexSource(botId, sourceId, text) {
+  try {
+    const pieces = chunk(clean(text));
+    if (!pieces.length) throw new Error('No readable text found (a scanned PDF with only images has no text to read).');
+    const vectors = await embedder.embed(pieces, 'document');
+    for (let i = 0; i < pieces.length; i += 100) {
+      const rows = pieces.slice(i, i + 100).map((p, j) => [botId, sourceId, p, rag.toBlob(vectors[i + j]), embedder.id]);
+      await db.insertMany('chunks', ['bot_id', 'source_id', 'text', 'embedding', 'model'], rows);
+    }
+    await db.run("UPDATE sources SET chunks = ?, status = 'ready', error = NULL WHERE id = ?", [pieces.length, sourceId]);
+    rag.invalidate(botId);
+  } catch (e) {
+    await fail(sourceId, e);
   }
-  rag.invalidate(botId);
-  return { id: src.insertId, name, chunks: pieces.length };
+}
+
+async function queueText(botId, type, name, text) {
+  const id = await createSource(botId, type, name);
+  enqueue(() => indexSource(botId, id, text));
+  return { id, name: clean(name), status: 'processing' };
 }
 
 async function pdfToText(buffer) {
@@ -61,24 +82,34 @@ async function fetchPage(url) {
   return { title: $('title').text().trim() || url, text, links };
 }
 
-async function addUrl(botId, startUrl, { crawl = false, maxPages = 15 } = {}) {
+async function queueUrl(botId, startUrl, { crawl = false, maxPages = 15 } = {}) {
   const origin = new URL(startUrl);
   if (!/^https?:$/.test(origin.protocol)) throw new Error('Only http(s) URLs are allowed');
-  const queue = [startUrl], seen = new Set(), added = [];
-  while (queue.length && added.length < (crawl ? maxPages : 1)) {
-    const url = queue.shift();
-    if (seen.has(url)) continue;
-    seen.add(url);
-    try {
-      const page = await fetchPage(url);
-      added.push(await addSource(botId, 'url', url, `${page.title}\n\n${page.text}`));
-      if (crawl) page.links.filter((l) => new URL(l).origin === origin.origin && !seen.has(l)).forEach((l) => queue.push(l));
-    } catch (e) {
-      if (!crawl) throw e;
-      console.warn('skip', url, e.message);
+  const firstId = await createSource(botId, 'url', startUrl);
+  enqueue(async () => {
+    let spare = firstId; // the row created above is used for the first page that loads
+    const todo = [startUrl], seen = new Set();
+    let done = 0, lastError = null;
+    while (todo.length && done < (crawl ? maxPages : 1)) {
+      const url = todo.shift();
+      if (seen.has(url)) continue;
+      seen.add(url);
+      try {
+        const page = await fetchPage(url);
+        const id = spare ?? (await createSource(botId, 'url', url));
+        if (spare) await db.run('UPDATE sources SET name = ? WHERE id = ?', [clean(url), id]);
+        spare = null;
+        await indexSource(botId, id, `${page.title}\n\n${page.text}`);
+        done++;
+        if (crawl) page.links.filter((l) => { try { return new URL(l).origin === origin.origin && !seen.has(l); } catch { return false; } }).forEach((l) => todo.push(l));
+      } catch (e) {
+        lastError = e;
+        console.warn('skip', url, e.message);
+      }
     }
-  }
-  return added;
+    if (spare) await fail(spare, lastError || new Error('Could not read the page'));
+  });
+  return { id: firstId, name: startUrl, status: 'processing' };
 }
 
-module.exports = { clean, chunk, addSource, addUrl, pdfToText };
+module.exports = { clean, chunk, queueText, queueUrl, pdfToText };
