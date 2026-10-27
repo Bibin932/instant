@@ -102,7 +102,7 @@
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ botId, sessionId: sid, message: text }),
       });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Request failed');
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Request failed (HTTP ' + r.status + ')');
       const reader = r.body.getReader(), dec = new TextDecoder();
       let buf = '';
       for (;;) {
