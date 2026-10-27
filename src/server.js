@@ -9,6 +9,7 @@ const rag = require('./rag');
 const ingest = require('./ingest');
 const flowEngine = require('./flows');
 const { stream } = require('./llm');
+const embedder = require('./embeddings');
 
 const app = express();
 app.use(cors());
@@ -95,7 +96,7 @@ app.post('/api/chat', rateLimit, async (req, res) => {
       await answer(bot, sess, message.trim(), send, String(sessionId || ''));
     }
   } catch (e) {
-    console.error('chat error:', e);
+    console.error('chat error:', e && e.message ? e.message : e, e && e.status ? `(HTTP ${e.status})` : '');
     send({ type: 'error', text: 'Sorry, something went wrong. Please try again.' });
   } finally {
     send({ type: 'done' });
@@ -114,27 +115,39 @@ async function answer(bot, sess, message, send, sessionId) {
   const key = `${bot.id}|${norm(message)}`;
   if (answerCache.has(key)) { const c = answerCache.get(key); send({ type: 'token', text: c }); return log(c, true); }
 
-  const { hits: found, best } = await rag.retrieve(bot.id, message);
-  if (!found.length || best < cfg.minScore) {
+  // Follow-ups like "and the price?" are searched together with the previous question
+  const prev = [...sess.history].reverse().find((m) => m.role === 'user');
+  const searchText = prev && message.length < 60 ? `${prev.content} ${message}` : message;
+  const { hits: found, best } = await rag.retrieve(bot.id, searchText);
+  const grounded = found.length > 0 && best >= cfg.minScore;
+
+  if (!grounded && (bot.mode || 'hybrid') === 'strict') {
     send({ type: 'token', text: fallback });
-    return log(fallback, false); // shows up in "unanswered" so you know what to add
+    return log(fallback, false); // shows up in the admin list so you know what to add
   }
 
-  const context = found.map((h, i) => `[${i + 1}] Source: ${h.source}\n${h.text}`).join('\n\n');
-  const system = `${bot.system_prompt}
+  let system;
+  if (grounded) {
+    const context = found.map((h, i) => `[${i + 1}] Source: ${h.source}\n${h.text}`).join('\n\n');
+    system = `${bot.system_prompt}
 
-Answer using ONLY the context below. If the answer is not in the context, say you don't know and suggest contacting the team. Keep answers short and clear.
+Use the context below first, especially for facts about this business. If the context only partly covers the question, combine it with your general knowledge. Never invent business-specific facts (prices, policies, contact details, availability); if they are not in the context, say you don't have that information. Keep answers clear and concise.
 
 <context>
 ${context}
 </context>`;
+  } else {
+    system = `${bot.system_prompt}
+
+No matching business documents were found for this question. Answer helpfully from your general knowledge and the conversation so far. Do not invent business-specific facts (prices, policies, contact details, availability); if asked for those, say you don't have that information and suggest contacting the team. Keep answers clear and concise.`;
+  }
   const messages = [...sess.history.slice(-6), { role: 'user', content: message }];
   let full = '';
   for await (const t of stream({ system, messages })) { full += t; send({ type: 'token', text: t }); }
   sess.history.push({ role: 'user', content: message }, { role: 'assistant', content: full });
   if (answerCache.size > 500) answerCache.delete(answerCache.keys().next().value);
   answerCache.set(key, full);
-  await log(full, true);
+  await log(full, grounded);
 }
 
 // ---------- admin API ----------
@@ -147,11 +160,11 @@ admin.get('/bots', wrap(async (req, res) => res.json(await db.all('SELECT * FROM
 admin.post('/bots', wrap(async (req, res) => {
   const b = req.body || {};
   const id = 'bot_' + crypto.randomBytes(4).toString('hex');
-  await db.run('INSERT INTO bots(id,name,system_prompt,welcome,color,fallback,allowed_origins,flows,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [
+  await db.run('INSERT INTO bots(id,name,system_prompt,welcome,color,fallback,allowed_origins,flows,created_at,mode) VALUES(?,?,?,?,?,?,?,?,?,?)', [
     id, b.name || 'Assistant',
     b.system_prompt || `You are a friendly support assistant for ${b.name || 'this website'}.`,
     b.welcome || 'Hi! How can I help you today?', b.color || '#2b5cff',
-    b.fallback || null, b.allowed_origins || '*', JSON.stringify(b.flows || flowEngine.defaultFlows), Date.now()]);
+    b.fallback || null, b.allowed_origins || '*', JSON.stringify(b.flows || flowEngine.defaultFlows), Date.now(), b.mode === 'strict' ? 'strict' : 'hybrid']);
   res.json(await getBot(id));
 }));
 
@@ -161,8 +174,8 @@ admin.put('/bots/:id', wrap(async (req, res) => {
   const b = { ...bot, ...req.body };
   if (typeof b.flows !== 'string') b.flows = JSON.stringify(b.flows);
   try { if (!Array.isArray(JSON.parse(b.flows))) throw 0; } catch { return res.status(400).json({ error: 'flows must be a JSON array' }); }
-  await db.run('UPDATE bots SET name=?,system_prompt=?,welcome=?,color=?,fallback=?,allowed_origins=?,flows=? WHERE id=?',
-    [b.name, b.system_prompt, b.welcome, b.color, b.fallback, b.allowed_origins, b.flows, bot.id]);
+  await db.run('UPDATE bots SET name=?,system_prompt=?,welcome=?,color=?,fallback=?,allowed_origins=?,flows=?,mode=? WHERE id=?',
+    [b.name, b.system_prompt, b.welcome, b.color, b.fallback, b.allowed_origins, b.flows, b.mode === 'strict' ? 'strict' : 'hybrid', bot.id]);
   answerCache.clear();
   res.json(await getBot(bot.id));
 }));
@@ -204,12 +217,33 @@ admin.get('/bots/:id/logs', wrap(async (req, res) => {
 }));
 admin.get('/bots/:id/leads', wrap(async (req, res) => res.json(await db.all('SELECT * FROM leads WHERE bot_id = ? ORDER BY id DESC LIMIT 200', [req.params.id]))));
 
+// Checks each part separately so you can see exactly what is failing
+admin.get('/diagnose', wrap(async (req, res) => {
+  const out = {};
+  const step = async (name, fn) => {
+    try { out[name] = { ok: true, ...(await fn()) }; }
+    catch (e) { out[name] = { ok: false, error: String((e && e.message) || e).slice(0, 500) }; }
+  };
+  await step('database', async () => { await db.get('SELECT 1 AS ok'); return {}; });
+  await step('knowledge', async () => {
+    const t = await db.get('SELECT COUNT(*) AS n FROM chunks WHERE bot_id = ?', [req.query.botId]);
+    const u = await db.get('SELECT COUNT(*) AS n FROM chunks WHERE bot_id = ? AND model = ?', [req.query.botId, embedder.id]);
+    if (t.n === 0) throw new Error('No indexed text yet. Add a PDF or web page.');
+    if (u.n === 0) throw new Error(`Your ${t.n} chunks were indexed with a different embedding model than the current one (${embedder.id}). Remove the sources and add them again.`);
+    return { chunks: t.n, usable: u.n };
+  });
+  await step('embeddings', async () => { const [v] = await embedder.embed(['test'], 'query'); return { model: embedder.id, dimensions: v.length }; });
+  await step('llm', async () => {
+    let t = '';
+    for await (const x of stream({ system: 'Reply with the single word OK.', messages: [{ role: 'user', content: 'ping' }] })) { t += x; if (t.length > 40) break; }
+    return { provider: cfg.llm.provider, model: cfg.llm.model, reply: t.trim().slice(0, 40) || '(empty)' };
+  });
+  res.json(out);
+}));
+
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: err.message }); });
 
-if (require.main === module) {
-  if (cfg.adminKey === 'change-me') console.warn('WARNING: set ADMIN_KEY in .env before deploying');
-  db.init()
-    .then(() => app.listen(cfg.port, () => console.log(`Chatbot platform running on port ${cfg.port}  (admin: /admin.html)`)))
-    .catch((e) => { console.error('Startup failed:', e.message); process.exit(1); });
-}
-module.exports = app;
+if (cfg.adminKey === 'change-me') console.warn('WARNING: set ADMIN_KEY in .env before deploying');
+db.init()
+  .then(() => app.listen(cfg.port, () => console.log(`Chatbot platform running on port ${cfg.port}  (admin: /admin.html)`)))
+  .catch((e) => { console.error('Startup failed:', e.message); process.exit(1); });
