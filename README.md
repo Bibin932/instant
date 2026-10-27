@@ -49,7 +49,7 @@ If you change the embedding provider or model, re-add your sources (old vectors 
 
 1. **Ingest:** PDF or web page, then text, then ~1200-character chunks, then embeddings stored in PostgreSQL (Supabase).
 2. **Chat:** each message first checks **flows**. If none match, the bot embeds the question and finds the top matching chunks. The LLM answers from only those chunks, and the answer streams to the widget.
-3. **Saves money:** if nothing in the knowledge base matches (`MIN_SCORE`), the LLM is not called at all. The bot sends the fallback reply and the question appears in "unanswered" in the admin page. Repeat questions are served from a cache.
+3. **Answer modes** (per bot, in Bot settings): *Documents first, then general knowledge* (default) answers from your documents when they match and from the model's general knowledge otherwise, without inventing business facts. *Documents only* never goes beyond your content: with no match it skips the LLM, sends the fallback reply and saves money. Unmatched questions appear in the admin page either way. Repeat questions are served from a cache.
 
 ## Flows
 
