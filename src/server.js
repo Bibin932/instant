@@ -238,12 +238,17 @@ admin.get('/diagnose', wrap(async (req, res) => {
     let t = '';
     for await (const x of stream({ system: 'Reply with the single word OK.', messages: [{ role: 'user', content: 'ping' }] })) { t += x; if (t.length > 40) break; }
     return { provider: cfg.llm.provider, model: cfg.llm.model, reply: t.trim().slice(0, 40) || '(empty)' };
+  }).then(() => {
+    const l = cfg.llm;
+    if (!out.llm.ok && l.provider === 'anthropic' && l.apiKey && !l.apiKey.startsWith('sk-ant'))
+      out.llm.error = 'LLM_PROVIDER is "anthropic" (the default) but your key is not an Anthropic key. For Gemini set LLM_PROVIDER=openai-compatible, LLM_BASE_URL and LLM_MODEL in .env, then restart with: pm2 restart chatbot --update-env. Original error: ' + out.llm.error;
   });
   res.json(out);
 }));
 
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: err.message }); });
 
+console.log(`AI model: provider=${cfg.llm.provider} model=${cfg.llm.model}${cfg.llm.baseURL ? ' url=' + cfg.llm.baseURL : ''} | embeddings: ${embedder.id}`);
 if (cfg.adminKey === 'change-me') console.warn('WARNING: set ADMIN_KEY in .env before deploying');
 db.init()
   .then(() => app.listen(cfg.port, () => console.log(`Chatbot platform running on port ${cfg.port}  (admin: /admin.html)`)))

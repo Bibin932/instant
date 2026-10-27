@@ -1,4 +1,5 @@
-require('dotenv').config();
+// Load .env from the project folder no matter where pm2/aaPanel starts the app from
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const e = process.env;
 module.exports = {
   port: +e.PORT || 3000,
