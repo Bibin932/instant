@@ -73,13 +73,16 @@ async function api(path,opt={}){const h={'x-admin-key':KEY,...(opt.body&&!(opt.b
 const cur=()=>bots.find(b=>b.id===$('bots').value);
 async function loadBots(keep){bots=await api('/bots');$('bots').innerHTML=bots.map(b=>`<option value="${esc(b.id)}">${esc(b.name)} (${esc(b.id)})</option>`).join('');
   if(keep)$('bots').value=keep;$('bot').classList.toggle('hidden',!bots.length);if(bots.length)await loadBot();}
+let pollT;
+async function loadSources(){const b=cur();if(!b)return;const src=await api(`/bots/${b.id}/sources`);
+  $('sources').innerHTML=src.length?src.map(s=>`<tr><td>${esc(s.type)}</td><td>${esc(s.name)}</td><td>${s.status==='failed'?'FAILED: '+esc(s.error):s.status==='processing'?'Indexing in the background...':s.chunks+' chunks, ready'}</td><td><button class="ghost" data-del="${s.id}">Remove</button></td></tr>`).join(''):'<tr><td>No sources yet. Upload a PDF or add a page above.</td></tr>';
+  clearTimeout(pollT);if(src.some(s=>s.status==='processing'))pollT=setTimeout(()=>loadSources().catch(()=>{}),4000);}
 async function loadBot(){const b=cur();if(!b)return;
   $('embed').textContent=`<script src="${location.origin}/widget.js" data-bot-id="${b.id}"><\/script>`;
   $('s-name').value=b.name;$('s-welcome').value=b.welcome;$('s-prompt').value=b.system_prompt;$('s-fallback').value=b.fallback||'';$('s-mode').value=b.mode||'hybrid';
   $('s-color').value=b.color||'#2b5cff';$('s-origins').value=b.allowed_origins;
   try{$('s-flows').value=JSON.stringify(JSON.parse(b.flows),null,2)}catch{$('s-flows').value=b.flows}
-  const [src,un,leads]=await Promise.all([api(`/bots/${b.id}/sources`),api(`/bots/${b.id}/logs?unanswered=1`),api(`/bots/${b.id}/leads`)]);
-  $('sources').innerHTML=src.length?src.map(s=>`<tr><td>${esc(s.type)}</td><td>${esc(s.name)}</td><td>${s.chunks} chunks</td><td><button class="ghost" data-del="${s.id}">Remove</button></td></tr>`).join(''):'<tr><td>No sources yet. Upload a PDF or add a page above.</td></tr>';
+  const [un,leads]=await Promise.all([api(`/bots/${b.id}/logs?unanswered=1`),api(`/bots/${b.id}/leads`)]);loadSources();
   $('unanswered').innerHTML=un.length?un.map(l=>`<tr><td>${esc(l.question)}</td><td>${new Date(l.created_at).toLocaleString()}</td></tr>`).join(''):'<tr><td>None yet.</td></tr>';
   $('leads').innerHTML=leads.length?leads.map(l=>`<tr><td>${esc(l.flow)}</td><td>${esc(Object.entries(JSON.parse(l.data)).map(([k,v])=>k+': '+v).join(' | '))}</td><td>${new Date(l.created_at).toLocaleString()}</td></tr>`).join(''):'<tr><td>None yet.</td></tr>';}
 async function run(label,fn,btn){if(btn)btn.disabled=true;say(label+'...');try{await fn();say(label+' done');}catch(e){say(e.message,false)}if(btn)btn.disabled=false;}
@@ -90,10 +93,10 @@ $('diag').onclick=(e)=>run('Running checks',async()=>{const d=await api('/diagno
   $('diag-out').innerHTML=Object.entries(d).map(([k,v])=>`<tr><td><strong>${esc(k)}</strong></td><td>${v.ok?'OK':'FAILED'}</td><td>${esc(v.ok?Object.entries(v).filter(([x])=>x!=='ok').map(([x,y])=>x+': '+y).join(' | '):v.error)}</td></tr>`).join('')},e.target);
 $('create').onclick=()=>run('Creating bot',async()=>{const b=await api('/bots',{method:'POST',body:{name:$('new-name').value||'Assistant'}});$('new-name').value='';await loadBots(b.id)});
 $('del-bot').onclick=()=>{if(confirm('Delete this bot and all its knowledge?'))run('Deleting bot',async()=>{await api('/bots/'+cur().id,{method:'DELETE'});await loadBots()})};
-$('up-pdf').onclick=(e)=>run('Indexing PDF',async()=>{const f=$('pdf').files[0];if(!f)throw new Error('Choose a PDF first');const fd=new FormData();fd.append('file',f);await api(`/bots/${cur().id}/pdf`,{method:'POST',body:fd});$('pdf').value='';await loadBot()},e.target);
-$('add-url').onclick=(e)=>run('Reading page',async()=>{await api(`/bots/${cur().id}/url`,{method:'POST',body:{url:$('url').value,crawl:$('crawl').checked}});$('url').value='';await loadBot()},e.target);
-$('add-txt').onclick=(e)=>run('Adding text',async()=>{await api(`/bots/${cur().id}/text`,{method:'POST',body:{text:$('txt').value}});$('txt').value='';await loadBot()},e.target);
-$('sources').onclick=(e)=>{const id=e.target.dataset.del;if(id)run('Removing source',async()=>{await api(`/bots/${cur().id}/sources/${id}`,{method:'DELETE'});await loadBot()})};
+$('up-pdf').onclick=(e)=>run('Uploading PDF',async()=>{const f=$('pdf').files[0];if(!f)throw new Error('Choose a PDF first');const fd=new FormData();fd.append('file',f);await api(`/bots/${cur().id}/pdf`,{method:'POST',body:fd});$('pdf').value='';await loadSources()},e.target);
+$('add-url').onclick=(e)=>run('Adding page',async()=>{await api(`/bots/${cur().id}/url`,{method:'POST',body:{url:$('url').value,crawl:$('crawl').checked}});$('url').value='';await loadSources()},e.target);
+$('add-txt').onclick=(e)=>run('Adding text',async()=>{await api(`/bots/${cur().id}/text`,{method:'POST',body:{text:$('txt').value}});$('txt').value='';await loadSources()},e.target);
+$('sources').onclick=(e)=>{const id=e.target.dataset.del;if(id)run('Removing source',async()=>{await api(`/bots/${cur().id}/sources/${id}`,{method:'DELETE'});await loadSources()})};
 $('save-bot').onclick=(e)=>run('Saving settings',async()=>{let flows;try{flows=JSON.parse($('s-flows').value)}catch{throw new Error('Flows is not valid JSON')}
   const b=await api('/bots/'+cur().id,{method:'PUT',body:{name:$('s-name').value,welcome:$('s-welcome').value,system_prompt:$('s-prompt').value,fallback:$('s-fallback').value||null,mode:$('s-mode').value,color:$('s-color').value,allowed_origins:$('s-origins').value||'*',flows}});await loadBots(b.id)},e.target);
 </script></main></body></html>
