@@ -52,6 +52,7 @@ function rateLimit(req, res, next) {
 }
 
 // ---------- public API ----------
+app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/bots/:id/config', wrap(async (req, res) => {
   const bot = await getBot(req.params.id);
   if (!bot || !originOk(bot, req)) return res.status(404).json({ error: 'Bot not found' });
@@ -225,6 +226,10 @@ admin.get('/diagnose', wrap(async (req, res) => {
     try { out[name] = { ok: true, ...(await fn()) }; }
     catch (e) { out[name] = { ok: false, error: String((e && e.message) || e).slice(0, 500) }; }
   };
+  await step('config', async () => {
+    if (!cfg.envFound) throw new Error(`.env file NOT found at ${cfg.envPath}. Create it there (copy .env.example to .env) and restart with: pm2 restart chatbot --update-env`);
+    return { envFile: 'found', provider: cfg.llm.provider, model: cfg.llm.model, baseURL: cfg.llm.baseURL || '(default)', llmKey: cfg.llm.apiKey ? 'set' : 'EMPTY', embeddings: embedder.id };
+  });
   await step('database', async () => { await db.get('SELECT 1 AS ok'); return {}; });
   await step('knowledge', async () => {
     const t = await db.get('SELECT COUNT(*) AS n FROM chunks WHERE bot_id = ?', [req.query.botId]);

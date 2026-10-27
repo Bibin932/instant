@@ -3,6 +3,10 @@ const cfg = require('./config').llm;
 
 let client;
 async function* stream({ system, messages }) {
+  if (cfg.provider === 'anthropic' && !cfg.apiKey) {
+    const { envFound, envPath } = require('./config');
+    throw new Error(`No API key found. The AI provider is "anthropic" (the default) and LLM_API_KEY is empty. ${envFound ? '.env was found' : `.env was NOT found at ${envPath}`}. For Gemini, set LLM_PROVIDER=openai-compatible, LLM_BASE_URL, LLM_API_KEY and LLM_MODEL in .env, then run: pm2 restart chatbot --update-env`);
+  }
   if (cfg.provider === 'anthropic') {
     const Anthropic = require('@anthropic-ai/sdk');
     client ||= new Anthropic({ apiKey: cfg.apiKey });

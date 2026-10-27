@@ -1,7 +1,11 @@
 // Load .env from the project folder no matter where pm2/aaPanel starts the app from
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+const envPath = require('path').join(__dirname, '../.env');
+const envFound = require('fs').existsSync(envPath);
+require('dotenv').config({ path: envPath });
 const e = process.env;
 module.exports = {
+  envPath,
+  envFound,
   port: +e.PORT || 3000,
   adminKey: e.ADMIN_KEY || 'change-me',
   llm: {
