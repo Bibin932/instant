@@ -34,6 +34,10 @@ code,pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;pad
   <div class="row"><div><input id="new-name" placeholder="Name, e.g. Acme Support"></div><button id="create">Create bot</button></div></div>
 
 <div id="bot" class="hidden">
+<div class="card"><h2>Diagnostics</h2>
+  <p style="margin:0;color:var(--mute)">Tests the database, your knowledge base, the embedding model and the AI model one by one.</p>
+  <button id="diag">Run checks</button><table id="diag-out" style="margin-top:10px"></table></div>
+
 <div class="card"><h2>Add to your website</h2><pre id="embed"></pre></div>
 
 <div class="card"><h2>Knowledge</h2>
@@ -47,13 +51,15 @@ code,pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;pad
   <label for="s-name">Name</label><input id="s-name">
   <label for="s-welcome">Welcome message</label><input id="s-welcome">
   <label for="s-prompt">Instructions for the bot</label><textarea id="s-prompt" style="font-family:inherit;font-size:14px"></textarea>
-  <label for="s-fallback">Reply when it has no answer</label><input id="s-fallback">
+  <label for="s-fallback">Reply when it has no answer (documents-only mode)</label><input id="s-fallback">
+  <label for="s-mode">How the bot answers</label>
+  <select id="s-mode"><option value="hybrid">Documents first, then general knowledge</option><option value="strict">Documents only</option></select>
   <div class="row"><div><label for="s-color">Color</label><input id="s-color" type="color" style="height:38px;padding:2px"></div>
   <div><label for="s-origins">Allowed websites (comma separated, or *)</label><input id="s-origins"></div></div>
   <label for="s-flows">Flows (JSON)</label><textarea id="s-flows" style="min-height:260px"></textarea>
   <button id="save-bot">Save settings</button></div>
 
-<div class="card"><h2>Questions the bot could not answer</h2><table id="unanswered"></table></div>
+<div class="card"><h2>Questions not found in your documents</h2><table id="unanswered"></table></div>
 <div class="card"><h2>Leads from flows</h2><table id="leads"></table></div>
 </div></div>
 
@@ -69,7 +75,7 @@ async function loadBots(keep){bots=await api('/bots');$('bots').innerHTML=bots.m
   if(keep)$('bots').value=keep;$('bot').classList.toggle('hidden',!bots.length);if(bots.length)await loadBot();}
 async function loadBot(){const b=cur();if(!b)return;
   $('embed').textContent=`<script src="${location.origin}/widget.js" data-bot-id="${b.id}"><\/script>`;
-  $('s-name').value=b.name;$('s-welcome').value=b.welcome;$('s-prompt').value=b.system_prompt;$('s-fallback').value=b.fallback||'';
+  $('s-name').value=b.name;$('s-welcome').value=b.welcome;$('s-prompt').value=b.system_prompt;$('s-fallback').value=b.fallback||'';$('s-mode').value=b.mode||'hybrid';
   $('s-color').value=b.color||'#2b5cff';$('s-origins').value=b.allowed_origins;
   try{$('s-flows').value=JSON.stringify(JSON.parse(b.flows),null,2)}catch{$('s-flows').value=b.flows}
   const [src,un,leads]=await Promise.all([api(`/bots/${b.id}/sources`),api(`/bots/${b.id}/logs?unanswered=1`),api(`/bots/${b.id}/leads`)]);
@@ -80,6 +86,8 @@ async function run(label,fn,btn){if(btn)btn.disabled=true;say(label+'...');try{a
 async function connect(){try{await loadBots();$('app').classList.remove('hidden');sessionStorage.setItem('adminKey',KEY);}catch(e){say(e.message,false)}}
 $('save-key').onclick=()=>{KEY=$('key').value;connect()};if(KEY){$('key').value=KEY;connect()}
 $('bots').onchange=loadBot;
+$('diag').onclick=(e)=>run('Running checks',async()=>{const d=await api('/diagnose?botId='+cur().id);
+  $('diag-out').innerHTML=Object.entries(d).map(([k,v])=>`<tr><td><strong>${esc(k)}</strong></td><td>${v.ok?'OK':'FAILED'}</td><td>${esc(v.ok?Object.entries(v).filter(([x])=>x!=='ok').map(([x,y])=>x+': '+y).join(' | '):v.error)}</td></tr>`).join('')},e.target);
 $('create').onclick=()=>run('Creating bot',async()=>{const b=await api('/bots',{method:'POST',body:{name:$('new-name').value||'Assistant'}});$('new-name').value='';await loadBots(b.id)});
 $('del-bot').onclick=()=>{if(confirm('Delete this bot and all its knowledge?'))run('Deleting bot',async()=>{await api('/bots/'+cur().id,{method:'DELETE'});await loadBots()})};
 $('up-pdf').onclick=(e)=>run('Indexing PDF',async()=>{const f=$('pdf').files[0];if(!f)throw new Error('Choose a PDF first');const fd=new FormData();fd.append('file',f);await api(`/bots/${cur().id}/pdf`,{method:'POST',body:fd});$('pdf').value='';await loadBot()},e.target);
@@ -87,5 +95,5 @@ $('add-url').onclick=(e)=>run('Reading page',async()=>{await api(`/bots/${cur().
 $('add-txt').onclick=(e)=>run('Adding text',async()=>{await api(`/bots/${cur().id}/text`,{method:'POST',body:{text:$('txt').value}});$('txt').value='';await loadBot()},e.target);
 $('sources').onclick=(e)=>{const id=e.target.dataset.del;if(id)run('Removing source',async()=>{await api(`/bots/${cur().id}/sources/${id}`,{method:'DELETE'});await loadBot()})};
 $('save-bot').onclick=(e)=>run('Saving settings',async()=>{let flows;try{flows=JSON.parse($('s-flows').value)}catch{throw new Error('Flows is not valid JSON')}
-  const b=await api('/bots/'+cur().id,{method:'PUT',body:{name:$('s-name').value,welcome:$('s-welcome').value,system_prompt:$('s-prompt').value,fallback:$('s-fallback').value||null,color:$('s-color').value,allowed_origins:$('s-origins').value||'*',flows}});await loadBots(b.id)},e.target);
+  const b=await api('/bots/'+cur().id,{method:'PUT',body:{name:$('s-name').value,welcome:$('s-welcome').value,system_prompt:$('s-prompt').value,fallback:$('s-fallback').value||null,mode:$('s-mode').value,color:$('s-color').value,allowed_origins:$('s-origins').value||'*',flows}});await loadBots(b.id)},e.target);
 </script></main></body></html>
