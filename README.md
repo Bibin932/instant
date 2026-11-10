@@ -136,6 +136,7 @@ Keep this as valid JSON on a single line.
 
 ## Dashboard and monitoring
 
+- Root URL `https://leadsync.yourdomain.com/` redirects to the dashboard.
 - Dashboard: `https://leadsync.yourdomain.com/admin`
 - Login: HTTP Basic Auth using `ADMIN_USERNAME` and `ADMIN_PASSWORD`
 - Health: `https://leadsync.yourdomain.com/health`

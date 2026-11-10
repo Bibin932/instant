@@ -338,6 +338,9 @@ function pruneOldJobs() {
   if (state.jobs.length !== before) saveState().catch(error => console.error('Could not save pruned job state:', error.message));
 }
 
+// Root URL: send visitors to the protected admin dashboard instead of returning the JSON 404.
+app.get('/', (_req, res) => res.redirect(302, '/admin'));
+
 // Public health endpoint.
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'meta-crm-bridge', time: new Date().toISOString() });
