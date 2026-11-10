@@ -1,0 +1,21 @@
+{
+  "name": "meta-to-existing-crm-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted Meta Lead Ads webhook bridge for an existing CRM API",
+  "main": "server.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "build": "node -e \"console.log('No build step required for this Node.js service')\"",
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0"
+  }
+}
