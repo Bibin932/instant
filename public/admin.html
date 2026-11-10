@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meta → CRM Bridge</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#182230;background:#f5f7fb}
+    *{box-sizing:border-box}body{margin:0}.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:12px;background:#1769e0;color:white;display:grid;place-items:center;font-weight:800}.sub{color:#667085;font-size:13px;margin-top:3px}.pill{border-radius:999px;padding:7px 11px;background:#e8f7ef;color:#137547;font-size:12px;font-weight:700}
+    h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 14px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}.card,.panel{background:white;border:1px solid #e5eaf1;border-radius:14px;box-shadow:0 2px 8px rgba(16,24,40,.03)}.card{padding:17px}.label{font-size:12px;color:#667085}.value{font-size:28px;font-weight:750;margin-top:7px}.panel{padding:18px;margin-top:16px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.muted{font-size:12px;color:#667085}.btn{border:0;border-radius:8px;background:#1769e0;color:white;padding:9px 13px;font-weight:650;cursor:pointer}.btn:disabled{opacity:.5;cursor:wait}.btn.secondary{background:#edf2f7;color:#344054}.status{display:inline-block;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700;text-transform:capitalize}.synced{background:#e7f7ef;color:#087443}.queued,.processing,.retrying{background:#fff3d7;color:#8a5700}.failed{background:#fdecec;color:#b42318}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #edf0f4;font-size:13px;vertical-align:top}th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#667085}td small{display:block;color:#667085;margin-top:3px;max-width:240px;overflow-wrap:anywhere}.empty{text-align:center;padding:35px;color:#667085}.config{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.config-item{background:#f8fafc;padding:12px;border-radius:10px}.config-item strong{display:block;font-size:12px;margin-bottom:4px}.config-item span{font-size:12px;color:#667085;overflow-wrap:anywhere}.error{color:#b42318}.foot{font-size:12px;color:#667085;margin-top:20px;line-height:1.6}
+    @media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.config{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand"><div class="mark">M</div><div><h1>Meta → Existing CRM Bridge</h1><div class="sub">Self-hosted lead delivery monitor</div></div></div>
+      <div class="pill" id="connection">Checking service…</div>
+    </header>
+
+    <section class="grid">
+      <div class="card"><div class="label">Total webhook leads</div><div class="value" id="received">—</div></div>
+      <div class="card"><div class="label">Delivered to CRM</div><div class="value" id="synced">—</div></div>
+      <div class="card"><div class="label">Waiting / retrying</div><div class="value" id="pending">—</div></div>
+      <div class="card"><div class="label">Failed after retries</div><div class="value" id="failed">—</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>Integration configuration</h2><div class="muted">Secrets are not displayed in this dashboard.</div></div><button class="btn secondary" id="refresh">Refresh</button></div>
+      <div class="config" id="config"><div class="muted">Loading configuration…</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>Recent Meta leads</h2><div class="muted">Webhook events and CRM delivery status</div></div><div class="muted" id="updated">—</div></div>
+      <div class="table-wrap"><table><thead><tr><th>Received</th><th>Lead</th><th>Phone / Email</th><th>Course</th><th>Status</th><th>Action / Error</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table></div>
+    </section>
+    <div class="foot">Keep this dashboard private. Leads are stored locally in the service queue for retry and duplicate prevention. Do not expose the webhook admin endpoints or your .env file publicly.</div>
+  </div>
+<script>
+  const $ = id => document.getElementById(id);
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  function fmt(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?esc(value):d.toLocaleString();}
+  async function load(){
+    $('refresh').disabled=true;
+    try{
+      const [summaryRes, configRes] = await Promise.all([fetch('/admin/api/summary'),fetch('/admin/api/config-check')]);
+      if(!summaryRes.ok || !configRes.ok) throw new Error('Could not load dashboard data. Check dashboard authentication.');
+      const summary=await summaryRes.json(); const config=await configRes.json();
+      $('received').textContent=summary.received;$('synced').textContent=summary.synced;$('pending').textContent=summary.pending;$('failed').textContent=summary.failed;
+      $('connection').textContent=config.ok?'Configuration looks complete':'Configuration incomplete';
+      $('connection').style.background=config.ok?'#e8f7ef':'#fff3d7';$('connection').style.color=config.ok?'#137547':'#8a5700';
+      $('config').innerHTML=[
+        ['Webhook callback',config.webhookUrl],['CRM endpoint',config.crmEndpointConfigured?'Configured':'Missing'],
+        ['CRM auth header',config.crmAuthHeader],['Meta Graph API',config.graphVersion],
+        ['Missing settings',config.missing.length?config.missing.join(', '):'None']
+      ].map(([k,v])=>`<div class="config-item"><strong>${esc(k)}</strong><span>${esc(v)}</span></div>`).join('');
+      const jobs=summary.jobs||[];
+      $('rows').innerHTML=jobs.length?jobs.map(j=>{
+        const status=esc(j.status||'unknown');
+        const canRetry=j.status==='failed'||j.status==='retrying';
+        return `<tr><td>${fmt(j.receivedAt)}<small>Lead ID: ${esc(j.leadId)}</small></td><td>${esc(j.name||'Awaiting lead details')}<small>Page: ${esc(j.pageId||'—')} · Form: ${esc(j.formId||'—')}</small></td><td>${esc(j.phone||'—')}<small>${esc(j.email||'')}</small></td><td>${esc(j.course||'—')}<small>${esc(j.campaign||'')}</small></td><td><span class="status ${status}">${status}</span><small>Attempts: ${Number(j.attempts||0)}</small></td><td>${canRetry?`<button class="btn secondary" onclick="retryLead('${encodeURIComponent(j.leadId)}')">Retry</button>`:''}${j.lastError?`<small class="error">${esc(j.lastError)}</small>`:(j.crmHttpStatus?`<small>CRM HTTP ${esc(j.crmHttpStatus)}</small>`:'')}</td></tr>`;
+      }).join(''):'<tr><td colspan="6" class="empty">No leads received yet. Submit a Meta test lead after completing webhook setup.</td></tr>';
+      $('updated').textContent='Updated '+new Date().toLocaleTimeString();
+    }catch(error){$('connection').textContent='Unable to load';$('connection').style.background='#fdecec';$('connection').style.color='#b42318';$('rows').innerHTML=`<tr><td colspan="6" class="empty error">${esc(error.message)}</td></tr>`;}
+    finally{$('refresh').disabled=false;}
+  }
+  async function retryLead(encodedId){
+    const leadId=decodeURIComponent(encodedId);
+    const response=await fetch('/admin/api/retry/'+encodeURIComponent(leadId),{method:'POST'});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok){alert(body.error||'Could not queue retry');return;}
+    await load();
+  }
+  $('refresh').addEventListener('click',load);
+  load();setInterval(load,10000);
+</script>
+</body>
+</html>
