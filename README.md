@@ -1,132 +1,87 @@
-# Self-hosted Meta Lead Ads → Online Leads API sync
+# Multi-Page Meta Admin update
 
-This is a standalone Node.js polling service. It does not modify the existing `server.js`, webhook route, Nginx configuration, WACRM, or CRM application code.
+This is a **targeted update** for the currently working `faces.cybercodix.com` project. It adds Page/form management to the existing `/admin` without replacing the CRM API contract or the existing webhook routes.
 
-## What it sends
+## Files included
 
-It polls the configured Meta Page's lead forms and reads new lead records using the Page Access Token in the parent project's `.env` (`META_PAGE_TOKENS_JSON`). It then sends one lead per request to the configured CRM API.
+Replace only these files in the existing repository:
 
-The supplied CRM endpoint is configured as:
+- `server.js` — adds authenticated `/admin/api/meta/*` proxy routes. Existing webhook and retry routes are retained.
+- `public/admin.html` — adds the Meta Lead Sync accounts/forms panel to the existing admin page; existing webhook summary and recent-lead table are retained.
+- `meta-lead-sync/lead-sync.js` — adds multi-Page polling and a localhost-only management API on the existing health port (`127.0.0.1:3111`). Existing lead mapping, CRM endpoint, dry-run behavior, retry timing, and `state.json` processing are retained.
+- `.gitignore` — excludes the Page-token registry and polling runtime data from Git.
+- `meta-lead-sync/README.md` — adds operation notes.
 
-`POST https://likv34svlb.execute-api.ap-south-1.amazonaws.com/prod/create-online-leads`
+No `package.json`, dependency, Nginx, PM2, systemd unit, `.env`, `meta-lead-sync/.env`, or runtime data file is included in this update.
 
-The JSON body follows the example contract exactly:
+## What the new panel does
 
-```json
-{
-  "tableName": "OnlineLeads-qr2mdczhwfhc7nmmkiafsfjlui-prod",
-  "data": [
-    {
-      "firstName": "Full name from Meta",
-      "lastName": "Full name from Meta",
-      "email": "email from Meta",
-      "phone": "phone from Meta or empty string",
-      "interestedCourse": "course answer or configured default",
-      "remarks": "specialization/remarks answer or configured default",
-      "assignedTo": "1572c311-936b-42d3-a829-67041840d5b4",
-      "campainName": "campaign answer/configured value or empty string",
-      "waNumber": "phone from Meta or empty string",
-      "formType": "LANGUAGE",
-      "preferedLanguage": "language answer/configured default or empty string",
-      "hideLead": false
-    }
-  ]
-}
-```
+- Lists connected Facebook Pages by Page name and ID.
+- Shows connection status and last check time.
+- Lists each Page's Instant Forms and Meta form status.
+- Lets the admin refresh forms, pause/enable a Page, pause/enable each ACTIVE form, and disconnect a Page.
+- Shows total processed leads, delivered leads, retries/failures, and per-Page/per-form counts from the poller's existing `data/state.json`.
+- Lets an admin connect another Page by pasting its **Page Access Token**. The server validates the token and discovers the Page's forms.
+- New Pages and newly discovered forms are paused by default. The existing configured Page's current all-forms behavior is preserved during the first migration.
+- Page tokens are stored server-side in `meta-lead-sync/data/connections.json` with mode `0600`; the token is never returned to the browser. The management API binds only to `127.0.0.1` and is proxied through the existing Basic-Auth-protected `/admin`.
 
-The property spellings `campainName` and `preferedLanguage` intentionally match the API example, including their spelling. The entire Meta name is copied to both `firstName` and `lastName` by default because that is how the supplied CRM examples are shaped. Set `CRM_DUPLICATE_FULL_NAME_IN_FIRST_LAST=false` only if the CRM owner confirms the API expects the name split into first and last parts.
+## Safety: deploy without replacing runtime data
 
-### Field mapping
+1. Push the included source files to GitHub. Do not add `.env` or any `data/*.json` files.
+2. After deployment reaches the VPS, make a backup before restarting either service:
 
-- `full_name` / `name` → `firstName` and `lastName`
-- `email` / `email_address` → `email`
-- `phone_number`, `phone`, `mobile_number`, `mobile`, `telephone`, `wa_number`, `whatsapp_number` → `phone` and `waNumber`
-- course/program form answers → `interestedCourse`
-- remarks/specialization/course-detail/branch answers → `remarks`
-- preferred-language/language form answers → `preferedLanguage`
-- `assignedTo`, `formType`, `hideLead`, table name → configured values
-- campaign answer or `CRM_CAMPAIGN_NAME` → `campainName`
+   ```bash
+   cd /www/wwwroot/faces.cybercodix.com/instant
+   umask 077
+   BACKUP="/root/meta-admin-backup-$(date +%Y%m%d-%H%M%S)"
+   mkdir -p "$BACKUP/public" "$BACKUP/meta-lead-sync"
+   cp server.js "$BACKUP/server.js"
+   cp public/admin.html "$BACKUP/public/admin.html"
+   cp meta-lead-sync/lead-sync.js "$BACKUP/meta-lead-sync/lead-sync.js"
+   [ ! -f meta-lead-sync/data/state.json ] || cp meta-lead-sync/data/state.json "$BACKUP/meta-lead-sync/state.json"
+   [ ! -f meta-lead-sync/data/connections.json ] || cp meta-lead-sync/data/connections.json "$BACKUP/meta-lead-sync/connections.json"
+   echo "Backup saved to: $BACKUP"
+   ```
 
-If the Meta form does not ask for course, specialization, or language, those fields remain empty unless an explicit default is configured. The service does not invent student answers. The campaign name also remains empty unless captured in fields or configured; retrieving the true campaign name from the Ad object may require additional Meta Ads permissions and is not assumed here.
+3. Check syntax before restarting:
 
-## Requirements
+   ```bash
+   cd /www/wwwroot/faces.cybercodix.com/instant
+   node --check server.js
+   node --check meta-lead-sync/lead-sync.js
+   ```
 
-- Node.js 20+.
-- `dotenv` available in the parent project.
-- Parent `.env` contains a valid `META_PAGE_TOKENS_JSON` object keyed by Page ID.
-- Meta permission/token must allow lead retrieval for the Page and form.
-- CRM API accepts HTTPS POST with the `tableName` and `data` structure above.
+4. Restart only the two existing services so the new admin routes and polling manager are loaded:
 
-## Install / update
+   ```bash
+   systemctl restart faces-meta-bridge
+   systemctl restart meta-lead-sync
+   ```
 
-Copy this folder to:
+   Do not change the Nginx vhost, port 3100/3111, the CRM endpoint, or WACRM.
 
-`/www/wwwroot/faces.cybercodix.com/instant/meta-lead-sync`
+5. Verify both services and the local management health endpoint:
 
-Then:
+   ```bash
+   systemctl status faces-meta-bridge meta-lead-sync --no-pager
+   curl -sS http://127.0.0.1:3111/health
+   journalctl -u meta-lead-sync -n 30 --no-pager
+   ```
 
-```bash
-cd /www/wwwroot/faces.cybercodix.com/instant/meta-lead-sync
-cp -n .env.example .env
-chmod 600 .env
-nano .env
-```
+6. Open `https://faces.cybercodix.com/admin` and refresh. The existing webhook cards remain at the top; the new polling/Page/form panel appears below the integration configuration.
 
-The service reads the Page token from the existing parent `.env`; do not duplicate the token in this folder.
+## First-start migration and existing lead history
 
-## Safe test first
+- On the first start, if `meta-lead-sync/data/connections.json` does not exist, the poller migrates the current `META_PAGE_ID` / `META_PAGE_TOKENS_JSON` configuration from the existing parent `.env` into that protected file.
+- The existing configured Page is enabled and its currently discovered forms are enabled, preserving the current polling behavior.
+- `meta-lead-sync/data/state.json` is read and updated in place. **Do not delete, replace, or commit it.**
+- New Pages connected from the dashboard are added with forms paused. Enable only the forms you intend to route to the CRM.
+- Disconnecting a Page removes its saved Page token and stops polling it, but does not delete its processed-lead history.
 
-Keep:
+## Rollback
 
-```env
-DRY_RUN=true
-SYNC_TEST_LEADS=true
-```
+If any issue appears, restore the three backed-up code files (`server.js`, `public/admin.html`, and `meta-lead-sync/lead-sync.js`) from the backup directory and restart the same two services. Do not delete `meta-lead-sync/data/state.json` or `connections.json`; the old single-Page code ignores `connections.json` and continues using the original parent `.env` Page token configuration.
 
-The service will retrieve leads and log a sanitized preview of CRM field names/populated fields. It will not call the CRM while `DRY_RUN=true`.
+## Important operational note
 
-The first run creates a timestamp baseline and ignores older leads unless `SYNC_HISTORICAL_LEADS=true`. Do not delete `data/state.json` after starting; it tracks processed lead IDs.
-
-## Configure CRM
-
-The `.env.example` includes the endpoint and table name supplied by the CRM owner. Review these settings:
-
-- `CRM_API_URL`: supplied AWS API Gateway endpoint.
-- `CRM_API_METHOD=POST`.
-- `CRM_PAYLOAD_MODE=online_leads`.
-- `CRM_TABLE_NAME`: supplied table name.
-- `CRM_ASSIGNED_TO`: supplied assignment UUID.
-- `CRM_FORM_TYPE=LANGUAGE`: supplied form type.
-- `CRM_CAMPAIGN_NAME`, `CRM_DEFAULT_LANGUAGE`, `CRM_DEFAULT_COURSE`, `CRM_DEFAULT_REMARKS`: optional defaults. Leave blank unless correct for this form.
-- `CRM_BEARER_TOKEN` / `CRM_HEADERS_JSON`: optional. The supplied sample did not specify authentication; confirm with the API owner before adding credentials if the API returns 401/403.
-
-The service sends `Idempotency-Key: meta-lead-{lead_id}`. Its local state also prevents normal repeat sends. Confirm the CRM accepts this header or uses its own duplicate rule; a local service cannot fully guarantee exactly-once insertion if the remote API commits a request but the network drops before the response arrives.
-
-## Go live only after mapping review
-
-Before enabling CRM writes:
-
-1. Confirm the API owner accepts blank optional `phone`, course, remarks, campaign, or language values when a form does not collect them.
-2. Confirm whether `firstName` and `lastName` should both contain the full name (the provided examples do) or should be split.
-3. Confirm that the assigned user UUID and `formType=LANGUAGE` are correct for this Page/form.
-4. Confirm the endpoint's authentication requirements. No auth header was shown in the supplied example.
-5. Set `SYNC_TEST_LEADS=false` so Meta sample leads are never delivered to the live CRM.
-6. Set `DRY_RUN=false` and restart the service.
-
-```bash
-systemctl restart meta-lead-sync
-journalctl -u meta-lead-sync -f
-```
-
-## Health / logs
-
-```bash
-curl -sS http://127.0.0.1:3111/health
-journalctl -u meta-lead-sync -n 50 --no-pager
-```
-
-The health endpoint is bound to localhost only. Logs omit personal lead values.
-
-## Important Meta access note
-
-Self-hosting removes third-party automation subscriptions but does not bypass Meta permissions, token expiry, app review, or production access restrictions for `leads_retrieval`.
+The existing webhook bridge and the polling sync are separate delivery paths. Their dashboard counts are shown separately rather than added together. If both paths are active for the same Page/form and both are configured to send to the same CRM, they can create duplicate CRM entries unless the CRM enforces a shared idempotency/deduplication key. Keep only one delivery path active for a given Page/form unless you have confirmed cross-path deduplication.
