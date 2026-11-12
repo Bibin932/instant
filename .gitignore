@@ -4,3 +4,11 @@ node_modules/
 data/*.json
 data/*.tmp
 *.log
+
+# Meta Lead Sync runtime secrets and state (never commit Page tokens or lead history)
+meta-lead-sync/.env
+meta-lead-sync/.env.*
+!meta-lead-sync/.env.example
+meta-lead-sync/data/*.json
+meta-lead-sync/data/*.tmp
+meta-lead-sync/data/*.backup*
