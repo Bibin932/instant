@@ -64,6 +64,16 @@ const CONFIG = {
   crmHeaders: parseJsonEnv('CRM_HEADERS_JSON', {}),
   crmFieldMap: parseJsonEnv('CRM_FIELD_MAP_JSON', {}),
   crmStaticFields: parseJsonEnv('CRM_STATIC_FIELDS_JSON', {}),
+  crmPayloadMode: (process.env.CRM_PAYLOAD_MODE || 'online_leads').toLowerCase(),
+  crmTableName: process.env.CRM_TABLE_NAME || 'OnlineLeads-qr2mdczhwfhc7nmmkiafsfjlui-prod',
+  crmAssignedTo: process.env.CRM_ASSIGNED_TO || '1572c311-936b-42d3-a829-67041840d5b4',
+  crmFormType: process.env.CRM_FORM_TYPE || 'LANGUAGE',
+  crmCampaignName: process.env.CRM_CAMPAIGN_NAME || '',
+  crmDefaultLanguage: process.env.CRM_DEFAULT_LANGUAGE || '',
+  crmDefaultCourse: process.env.CRM_DEFAULT_COURSE || '',
+  crmDefaultRemarks: process.env.CRM_DEFAULT_REMARKS || '',
+  crmHideLead: envBool('CRM_HIDE_LEAD', false),
+  crmDuplicateNameFields: envBool('CRM_DUPLICATE_FULL_NAME_IN_FIRST_LAST', true),
   crmTimeoutMs: envInt('CRM_TIMEOUT_MS', 20000, 1000, 120000),
 };
 
@@ -85,6 +95,9 @@ if (!/^https:\/\//i.test(CONFIG.crmUrl) && !CONFIG.dryRun) {
 }
 if (!['POST', 'PUT', 'PATCH'].includes(CONFIG.crmMethod)) {
   throw new Error('CRM_API_METHOD must be POST, PUT, or PATCH');
+}
+if (!['online_leads', 'generic'].includes(CONFIG.crmPayloadMode)) {
+  throw new Error('CRM_PAYLOAD_MODE must be online_leads or generic');
 }
 if (!CONFIG.crmHeaders || Array.isArray(CONFIG.crmHeaders) || typeof CONFIG.crmHeaders !== 'object') {
   throw new Error('CRM_HEADERS_JSON must be a JSON object');
@@ -202,7 +215,81 @@ function isMetaTestLead(fields) {
   return name.includes('<test lead:') || email === 'test@meta.com';
 }
 
+function normalizeFieldKey(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function findFieldByAliases(fields, aliases, keywordFallbacks = []) {
+  const entries = Object.entries(fields || {});
+  const normalizedAliases = aliases.map(normalizeFieldKey);
+  for (const [key, value] of entries) {
+    if (normalizedAliases.includes(normalizeFieldKey(key))) return Array.isArray(value) ? (value[0] || '') : value;
+  }
+  for (const keyword of keywordFallbacks) {
+    const normalizedKeyword = normalizeFieldKey(keyword);
+    const found = entries.find(([key]) => normalizeFieldKey(key).includes(normalizedKeyword));
+    if (found) return Array.isArray(found[1]) ? (found[1][0] || '') : found[1];
+  }
+  return '';
+}
+
+function makeOnlineLeadsPayload(lead) {
+  const fields = extractFields(lead.field_data);
+  const fullName = String(firstValue(fields, ['full_name', 'name'])).trim();
+  const phone = String(firstValue(fields, ['phone_number', 'phone', 'mobile_number', 'mobile', 'telephone', 'wa_number', 'whatsapp_number'])).trim();
+  const email = String(firstValue(fields, ['email', 'email_address'])).trim();
+  const interestedCourse = String(findFieldByAliases(
+    fields,
+    ['interestedCourse', 'interested_course', 'course', 'course_name', 'program', 'program_name'],
+    ['interestedcourse', 'course', 'program']
+  ) || CONFIG.crmDefaultCourse).trim();
+  const remarks = String(findFieldByAliases(
+    fields,
+    ['remarks', 'specialization', 'course_details', 'course_specialization', 'branch'],
+    ['remarks', 'specialization', 'course_details']
+  ) || CONFIG.crmDefaultRemarks).trim();
+  const language = String(findFieldByAliases(
+    fields,
+    ['preferedLanguage', 'preferredLanguage', 'prefered_language', 'preferred_language', 'language'],
+    ['preferredlanguage', 'preferedlanguage', 'language']
+  ) || CONFIG.crmDefaultLanguage).trim();
+  const campaignName = String(findFieldByAliases(
+    fields,
+    ['campainName', 'campaignName', 'campaign_name'],
+    ['campaignname']
+  ) || CONFIG.crmCampaignName).trim();
+
+  // The supplied CRM examples put the complete name in both fields. Keep that
+  // contract by default; optionally split into first token + remaining surname.
+  let firstName = fullName;
+  let lastName = CONFIG.crmDuplicateNameFields ? fullName : '';
+  if (!CONFIG.crmDuplicateNameFields && fullName) {
+    const parts = fullName.split(/\s+/);
+    firstName = parts.shift() || '';
+    lastName = parts.join(' ');
+  }
+
+  return {
+    tableName: CONFIG.crmTableName,
+    data: [{
+      firstName,
+      lastName,
+      email,
+      phone,
+      interestedCourse,
+      remarks,
+      assignedTo: CONFIG.crmAssignedTo,
+      campainName: campaignName,
+      waNumber: phone,
+      formType: CONFIG.crmFormType,
+      preferedLanguage: language,
+      hideLead: CONFIG.crmHideLead,
+    }],
+  };
+}
+
 function makeCanonicalPayload(lead) {
+  if (CONFIG.crmPayloadMode === 'online_leads') return makeOnlineLeadsPayload(lead);
   const fields = extractFields(lead.field_data);
   const payload = {
     meta_lead_id: String(lead.id),
@@ -287,10 +374,18 @@ async function processLead(lead) {
   if (CONFIG.dryRun) {
     state.leads[id] = { status: 'dry_run', updated_at: new Date().toISOString() };
     await saveState();
+    const preview = makeCanonicalPayload(lead);
+    const previewRecord = CONFIG.crmPayloadMode === 'online_leads'
+      ? (Array.isArray(preview.data) ? preview.data[0] || {} : {})
+      : preview;
     log('DRY-RUN', 'Lead found; CRM request not sent', {
       lead_id: id,
       form_id: lead.form_id || '',
       field_names: Object.keys(fields),
+      crm_payload_mode: CONFIG.crmPayloadMode,
+      crm_table_name: preview.tableName || undefined,
+      crm_record_fields: Object.keys(previewRecord),
+      populated_fields: Object.entries(previewRecord).filter(([key, value]) => key !== 'hideLead' && value !== '' && value !== null && value !== undefined).map(([key]) => key),
     });
     return;
   }
@@ -422,6 +517,8 @@ async function main() {
   await loadState();
   log('INFO', 'Meta Lead Sync starting', {
     page_id: CONFIG.pageId,
+    crm_payload_mode: CONFIG.crmPayloadMode,
+    crm_configured: Boolean(CONFIG.crmUrl),
     graph_version: CONFIG.graphVersion,
     poll_seconds: CONFIG.pollSeconds,
     dry_run: CONFIG.dryRun,

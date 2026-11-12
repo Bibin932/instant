@@ -1,98 +1,132 @@
-# Meta Lead Ads -> CRM (self-hosted Node.js)
+# Self-hosted Meta Lead Ads → Online Leads API sync
 
-This is a separate polling service. It does not modify the existing `server.js`, webhook route, Nginx vhost, or WACRM/CRM application code.
+This is a standalone Node.js polling service. It does not modify the existing `server.js`, webhook route, Nginx configuration, WACRM, or CRM application code.
+
+## What it sends
+
+It polls the configured Meta Page's lead forms and reads new lead records using the Page Access Token in the parent project's `.env` (`META_PAGE_TOKENS_JSON`). It then sends one lead per request to the configured CRM API.
+
+The supplied CRM endpoint is configured as:
+
+`POST https://likv34svlb.execute-api.ap-south-1.amazonaws.com/prod/create-online-leads`
+
+The JSON body follows the example contract exactly:
+
+```json
+{
+  "tableName": "OnlineLeads-qr2mdczhwfhc7nmmkiafsfjlui-prod",
+  "data": [
+    {
+      "firstName": "Full name from Meta",
+      "lastName": "Full name from Meta",
+      "email": "email from Meta",
+      "phone": "phone from Meta or empty string",
+      "interestedCourse": "course answer or configured default",
+      "remarks": "specialization/remarks answer or configured default",
+      "assignedTo": "1572c311-936b-42d3-a829-67041840d5b4",
+      "campainName": "campaign answer/configured value or empty string",
+      "waNumber": "phone from Meta or empty string",
+      "formType": "LANGUAGE",
+      "preferedLanguage": "language answer/configured default or empty string",
+      "hideLead": false
+    }
+  ]
+}
+```
+
+The property spellings `campainName` and `preferedLanguage` intentionally match the API example, including their spelling. The entire Meta name is copied to both `firstName` and `lastName` by default because that is how the supplied CRM examples are shaped. Set `CRM_DUPLICATE_FULL_NAME_IN_FIRST_LAST=false` only if the CRM owner confirms the API expects the name split into first and last parts.
+
+### Field mapping
+
+- `full_name` / `name` → `firstName` and `lastName`
+- `email` / `email_address` → `email`
+- `phone_number`, `phone`, `mobile_number`, `mobile`, `telephone`, `wa_number`, `whatsapp_number` → `phone` and `waNumber`
+- course/program form answers → `interestedCourse`
+- remarks/specialization/course-detail/branch answers → `remarks`
+- preferred-language/language form answers → `preferedLanguage`
+- `assignedTo`, `formType`, `hideLead`, table name → configured values
+- campaign answer or `CRM_CAMPAIGN_NAME` → `campainName`
+
+If the Meta form does not ask for course, specialization, or language, those fields remain empty unless an explicit default is configured. The service does not invent student answers. The campaign name also remains empty unless captured in fields or configured; retrieving the true campaign name from the Ad object may require additional Meta Ads permissions and is not assumed here.
 
 ## Requirements
 
-- Node.js 20 or newer.
-- The existing project `.env` one directory above this folder must contain `META_PAGE_TOKENS_JSON` keyed by Page ID.
-- The existing project must have `dotenv` installed (it is already used by the current project).
-- A CRM HTTPS API endpoint and its expected JSON/authentication contract.
+- Node.js 20+.
+- `dotenv` available in the parent project.
+- Parent `.env` contains a valid `META_PAGE_TOKENS_JSON` object keyed by Page ID.
+- Meta permission/token must allow lead retrieval for the Page and form.
+- CRM API accepts HTTPS POST with the `tableName` and `data` structure above.
 
-## Install on the existing VPS
+## Install / update
 
-Upload/extract this folder to:
+Copy this folder to:
 
 `/www/wwwroot/faces.cybercodix.com/instant/meta-lead-sync`
 
-Then run:
+Then:
 
 ```bash
 cd /www/wwwroot/faces.cybercodix.com/instant/meta-lead-sync
-cp .env.example .env
+cp -n .env.example .env
 chmod 600 .env
 nano .env
 ```
 
-Keep `DRY_RUN=true` initially. The service reads the Page token for `META_PAGE_ID` from the existing parent file:
+The service reads the Page token from the existing parent `.env`; do not duplicate the token in this folder.
 
-`/www/wwwroot/faces.cybercodix.com/instant/.env`
+## Safe test first
 
-It does not require copying the token into this new folder.
+Keep:
 
-## First safe test
-
-Check the existing `.env` contains a valid `META_PAGE_TOKENS_JSON` object for the Page ID. Then install/start the independent service:
-
-```bash
-cp meta-lead-sync.service /etc/systemd/system/meta-lead-sync.service
-systemctl daemon-reload
-systemctl enable --now meta-lead-sync
-systemctl status meta-lead-sync --no-pager
-journalctl -u meta-lead-sync -f
+```env
+DRY_RUN=true
+SYNC_TEST_LEADS=true
 ```
 
-In dry-run mode it fetches Meta lead records but does not call the CRM. Logs show only lead IDs, form IDs, and field names—not lead values. Health check:
+The service will retrieve leads and log a sanitized preview of CRM field names/populated fields. It will not call the CRM while `DRY_RUN=true`.
 
-```bash
-curl -sS http://127.0.0.1:3111/health
-```
+The first run creates a timestamp baseline and ignores older leads unless `SYNC_HISTORICAL_LEADS=true`. Do not delete `data/state.json` after starting; it tracks processed lead IDs.
 
-## First-run behavior
+## Configure CRM
 
-By default, the first start records a baseline timestamp and does not import older leads. This avoids unexpectedly pushing historical/test leads into the CRM. New leads created after the service starts are eligible. Meta sample leads such as `test@meta.com` and names containing `<test lead:` are excluded by default.
+The `.env.example` includes the endpoint and table name supplied by the CRM owner. Review these settings:
 
-To intentionally backfill the form history, set `SYNC_HISTORICAL_LEADS=true` in this service's `.env`. Test leads remain excluded unless `SYNC_TEST_LEADS=true` is also set.
+- `CRM_API_URL`: supplied AWS API Gateway endpoint.
+- `CRM_API_METHOD=POST`.
+- `CRM_PAYLOAD_MODE=online_leads`.
+- `CRM_TABLE_NAME`: supplied table name.
+- `CRM_ASSIGNED_TO`: supplied assignment UUID.
+- `CRM_FORM_TYPE=LANGUAGE`: supplied form type.
+- `CRM_CAMPAIGN_NAME`, `CRM_DEFAULT_LANGUAGE`, `CRM_DEFAULT_COURSE`, `CRM_DEFAULT_REMARKS`: optional defaults. Leave blank unless correct for this form.
+- `CRM_BEARER_TOKEN` / `CRM_HEADERS_JSON`: optional. The supplied sample did not specify authentication; confirm with the API owner before adding credentials if the API returns 401/403.
 
-## CRM configuration
+The service sends `Idempotency-Key: meta-lead-{lead_id}`. Its local state also prevents normal repeat sends. Confirm the CRM accepts this header or uses its own duplicate rule; a local service cannot fully guarantee exactly-once insertion if the remote API commits a request but the network drops before the response arrives.
 
-Do not set `DRY_RUN=false` until the CRM API contract has been confirmed. Configure:
+## Go live only after mapping review
 
-- `CRM_API_URL`: the exact HTTPS endpoint.
-- `CRM_API_METHOD`: usually `POST`.
-- `CRM_BEARER_TOKEN`: optional Bearer token if the API uses it.
-- `CRM_HEADERS_JSON`: optional additional headers as a JSON object, e.g. `{"X-API-Key":"..."}`.
-- `CRM_FIELD_MAP_JSON`: optional map from source keys (`full_name`, `email`, `phone_number`, `meta_lead_id`, `page_id`, `form_id`, `created_time`, `fields`, `raw_field_data`, `source`) to CRM field names.
-- `CRM_STATIC_FIELDS_JSON`: optional fixed values required by the CRM.
+Before enabling CRM writes:
 
-With an empty field map, the service sends this standard JSON structure:
-
-```json
-{
-  "meta_lead_id": "...",
-  "source": "facebook_lead_ads",
-  "page_id": "...",
-  "form_id": "...",
-  "created_time": "...",
-  "full_name": "...",
-  "email": "...",
-  "phone_number": "...",
-  "fields": {"...": "..."},
-  "raw_field_data": []
-}
-```
-
-The CRM must accept that structure, or `CRM_FIELD_MAP_JSON` must be configured to match its schema. The service sends an `Idempotency-Key: meta-lead-{lead_id}` header. The CRM should honor that header or enforce a unique constraint on `meta_lead_id` to protect against duplicates if a request succeeds remotely but the network fails before the local service records the success.
-
-After the endpoint and field mapping are confirmed, set `DRY_RUN=false`, then restart:
+1. Confirm the API owner accepts blank optional `phone`, course, remarks, campaign, or language values when a form does not collect them.
+2. Confirm whether `firstName` and `lastName` should both contain the full name (the provided examples do) or should be split.
+3. Confirm that the assigned user UUID and `formType=LANGUAGE` are correct for this Page/form.
+4. Confirm the endpoint's authentication requirements. No auth header was shown in the supplied example.
+5. Set `SYNC_TEST_LEADS=false` so Meta sample leads are never delivered to the live CRM.
+6. Set `DRY_RUN=false` and restart the service.
 
 ```bash
 systemctl restart meta-lead-sync
 journalctl -u meta-lead-sync -f
 ```
 
-## State and logs
+## Health / logs
 
-Local delivery state is stored at `data/state.json` with restrictive permissions. Sent leads are not sent again. Failed requests are retried with exponential backoff. Do not delete `data/state.json` after going live, or the service may send previously imported leads again.
+```bash
+curl -sS http://127.0.0.1:3111/health
+journalctl -u meta-lead-sync -n 50 --no-pager
+```
 
-This service polls active and inactive Page forms every `POLL_INTERVAL_SECONDS` (default 60). Meta API access still depends on the Page token and the app's granted Meta permissions. Self-hosting does not bypass Meta App Review / Advanced Access requirements for production lead retrieval.
+The health endpoint is bound to localhost only. Logs omit personal lead values.
+
+## Important Meta access note
+
+Self-hosting removes third-party automation subscriptions but does not bypass Meta permissions, token expiry, app review, or production access restrictions for `leads_retrieval`.
