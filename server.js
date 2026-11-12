@@ -99,6 +99,47 @@ function adminAuth(req, res, next) {
   return next();
 }
 
+function adminSameOrigin(req, res, next) {
+  const origin = req.get('origin');
+  if (origin) {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.host !== req.get('host')) return res.status(403).json({ error: 'Cross-origin admin request rejected' });
+    } catch {
+      return res.status(403).json({ error: 'Invalid request origin' });
+    }
+  }
+  return next();
+}
+
+async function proxyMetaLeadSync(req, res, internalPath) {
+  const port = Number(env('META_SYNC_ADMIN_PORT', '3111'));
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return res.status(503).json({ error: 'Meta Lead Sync management port is not configured correctly' });
+  }
+  try {
+    const options = {
+      method: req.method,
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(12000),
+    };
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(req.body || {});
+    }
+    const upstream = await fetch(`http://127.0.0.1:${port}${internalPath}`, options);
+    const responseText = await upstream.text();
+    res.status(upstream.status);
+    res.type(upstream.headers.get('content-type') || 'application/json');
+    return res.send(responseText || '{}');
+  } catch (error) {
+    return res.status(503).json({
+      error: 'Meta Lead Sync service is unavailable. The existing webhook bridge is still separate.',
+      detail: String(error.message || 'Local service request failed').slice(0, 180),
+    });
+  }
+}
+
 function verifyMetaSignature(rawBody, signatureHeader) {
   const appSecret = env('META_APP_SECRET');
   if (!appSecret || !signatureHeader || !signatureHeader.startsWith('sha256=')) return false;
@@ -452,6 +493,32 @@ app.get('/admin/api/config-check', adminAuth, (_req, res) => {
     crmAuthHeader: env('CRM_AUTH_HEADER', 'x-api-key'),
     graphVersion: env('META_GRAPH_VERSION', 'v27.0'),
   });
+});
+
+// Multi-Page Meta Lead Sync management. These routes remain behind the
+// existing admin Basic Auth. The polling service itself is only bound to localhost.
+app.get('/admin/api/meta/overview', adminAuth, async (req, res) => {
+  return proxyMetaLeadSync(req, res, '/admin/overview');
+});
+
+app.post('/admin/api/meta/pages', adminAuth, adminSameOrigin, async (req, res) => {
+  return proxyMetaLeadSync(req, res, '/admin/pages');
+});
+
+app.post('/admin/api/meta/pages/:pageId/enabled', adminAuth, adminSameOrigin, async (req, res) => {
+  return proxyMetaLeadSync(req, res, `/admin/pages/${encodeURIComponent(req.params.pageId)}/enabled`);
+});
+
+app.post('/admin/api/meta/pages/:pageId/refresh', adminAuth, adminSameOrigin, async (req, res) => {
+  return proxyMetaLeadSync(req, res, `/admin/pages/${encodeURIComponent(req.params.pageId)}/refresh`);
+});
+
+app.post('/admin/api/meta/pages/:pageId/forms/:formId/enabled', adminAuth, adminSameOrigin, async (req, res) => {
+  return proxyMetaLeadSync(req, res, `/admin/pages/${encodeURIComponent(req.params.pageId)}/forms/${encodeURIComponent(req.params.formId)}/enabled`);
+});
+
+app.delete('/admin/api/meta/pages/:pageId', adminAuth, adminSameOrigin, async (req, res) => {
+  return proxyMetaLeadSync(req, res, `/admin/pages/${encodeURIComponent(req.params.pageId)}`);
 });
 
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
