@@ -1,0 +1,20 @@
+[Unit]
+Description=Self-hosted Meta Lead Ads to CRM Sync
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/www/wwwroot/faces.cybercodix.com/instant/meta-lead-sync
+ExecStart=/usr/bin/node /www/wwwroot/faces.cybercodix.com/instant/meta-lead-sync/lead-sync.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+# State and credentials are kept in this separate project directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
