@@ -6,10 +6,12 @@
   <title>Meta → CRM Bridge</title>
   <style>
     :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#182230;background:#f5f7fb}
-    *{box-sizing:border-box}body{margin:0}.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+    *{box-sizing:border-box}body{margin:0}.wrap{max-width:1240px;margin:0 auto;padding:28px 20px 48px}
     header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:12px;background:#1769e0;color:white;display:grid;place-items:center;font-weight:800}.sub{color:#667085;font-size:13px;margin-top:3px}.pill{border-radius:999px;padding:7px 11px;background:#e8f7ef;color:#137547;font-size:12px;font-weight:700}
-    h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 14px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}.card,.panel{background:white;border:1px solid #e5eaf1;border-radius:14px;box-shadow:0 2px 8px rgba(16,24,40,.03)}.card{padding:17px}.label{font-size:12px;color:#667085}.value{font-size:28px;font-weight:750;margin-top:7px}.panel{padding:18px;margin-top:16px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.muted{font-size:12px;color:#667085}.btn{border:0;border-radius:8px;background:#1769e0;color:white;padding:9px 13px;font-weight:650;cursor:pointer}.btn:disabled{opacity:.5;cursor:wait}.btn.secondary{background:#edf2f7;color:#344054}.status{display:inline-block;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700;text-transform:capitalize}.synced{background:#e7f7ef;color:#087443}.queued,.processing,.retrying{background:#fff3d7;color:#8a5700}.failed{background:#fdecec;color:#b42318}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #edf0f4;font-size:13px;vertical-align:top}th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#667085}td small{display:block;color:#667085;margin-top:3px;max-width:240px;overflow-wrap:anywhere}.empty{text-align:center;padding:35px;color:#667085}.config{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.config-item{background:#f8fafc;padding:12px;border-radius:10px}.config-item strong{display:block;font-size:12px;margin-bottom:4px}.config-item span{font-size:12px;color:#667085;overflow-wrap:anywhere}.error{color:#b42318}.foot{font-size:12px;color:#667085;margin-top:20px;line-height:1.6}
-    @media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.config{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
+    h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 14px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}.card,.panel{background:white;border:1px solid #e5eaf1;border-radius:14px;box-shadow:0 2px 8px rgba(16,24,40,.03)}.card{padding:17px}.label{font-size:12px;color:#667085}.value{font-size:28px;font-weight:750;margin-top:7px}.panel{padding:18px;margin-top:16px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.muted{font-size:12px;color:#667085}.btn{border:0;border-radius:8px;background:#1769e0;color:white;padding:9px 13px;font-weight:650;cursor:pointer}.btn:disabled{opacity:.5;cursor:wait}.btn.secondary{background:#edf2f7;color:#344054}.btn.danger{background:#fff0f0;color:#b42318}.status{display:inline-block;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700;text-transform:capitalize}.synced,.connected{background:#e7f7ef;color:#087443}.queued,.processing,.retrying,.checking{background:#fff3d7;color:#8a5700}.failed,.error{background:#fdecec;color:#b42318}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #edf0f4;font-size:13px;vertical-align:top}th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#667085}td small{display:block;color:#667085;margin-top:3px;max-width:240px;overflow-wrap:anywhere}.empty{text-align:center;padding:35px;color:#667085}.config{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.config-item{background:#f8fafc;padding:12px;border-radius:10px}.config-item strong{display:block;font-size:12px;margin-bottom:4px}.config-item span{font-size:12px;color:#667085;overflow-wrap:anywhere}.error-text{color:#b42318}.foot{font-size:12px;color:#667085;margin-top:20px;line-height:1.6}
+    .sync-head-note{font-size:12px;color:#667085;margin-top:4px}.sync-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}.sync-metric{background:#f8fafc;border:1px solid #edf0f4;padding:13px;border-radius:11px}.sync-metric .label{font-size:11px}.sync-metric .value{font-size:23px;margin-top:5px}.connect-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;background:#f8fafc;padding:14px;border-radius:12px;margin:14px 0}.field label{display:block;font-size:12px;font-weight:700;margin-bottom:6px}.field input{width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:11px 12px;font:inherit;font-size:13px;background:white}.help{font-size:11px;color:#667085;line-height:1.5;margin-top:6px}.notice{font-size:12px;line-height:1.5;border-radius:9px;padding:10px 12px;background:#eef5ff;color:#1756a9;margin:10px 0}.notice.error{background:#fff0f0;color:#b42318}.page-list{display:grid;gap:12px;margin-top:12px}.page-card{border:1px solid #e5eaf1;border-radius:12px;padding:15px;background:#fff}.page-head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}.page-title{font-size:14px;font-weight:750}.page-id{font-size:11px;color:#667085;margin-top:3px}.page-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.small-btn{font-size:11px;padding:7px 9px}.page-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0}.page-stat{background:#f8fafc;border-radius:8px;padding:9px}.page-stat strong{display:block;font-size:17px}.page-stat span{display:block;color:#667085;font-size:10px;margin-top:2px}.form-table{width:100%;min-width:600px}.form-table th,.form-table td{padding:9px 8px;font-size:12px}.form-table-wrap{overflow:auto;border:1px solid #edf0f4;border-radius:9px}.toggle{display:inline-flex;gap:7px;align-items:center;font-size:12px;font-weight:600;white-space:nowrap}.toggle input{width:16px;height:16px;accent-color:#1769e0}.page-error{font-size:11px;color:#b42318;margin-top:8px}.section-divider{border:0;border-top:1px solid #edf0f4;margin:13px 0}
+    @media(max-width:900px){.sync-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.page-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.config{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}.connect-form{grid-template-columns:1fr}.sync-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.page-head{flex-direction:column}.page-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
   </style>
 </head>
 <body>
@@ -31,47 +33,190 @@
       <div class="config" id="config"><div class="muted">Loading configuration…</div></div>
     </section>
 
+    <section class="panel" id="metaSyncPanel">
+      <div class="panel-head">
+        <div><h2>Meta Lead Sync · Accounts & Forms</h2><div class="sync-head-note">Manage connected Facebook Pages, choose which Instant Forms are synced, and monitor CRM delivery counts.</div></div>
+        <span class="status checking" id="syncServiceStatus">Checking sync service…</span>
+      </div>
+      <div class="sync-metrics">
+        <div class="sync-metric"><div class="label">Connected Pages</div><div class="value" id="metaPages">—</div></div>
+        <div class="sync-metric"><div class="label">Enabled Forms</div><div class="value" id="metaForms">—</div></div>
+        <div class="sync-metric"><div class="label">Leads seen</div><div class="value" id="metaLeads">—</div></div>
+        <div class="sync-metric"><div class="label">Delivered to CRM</div><div class="value" id="metaSent">—</div></div>
+        <div class="sync-metric"><div class="label">Retrying / Failed</div><div class="value" id="metaProblems">—</div></div>
+      </div>
+
+      <form class="connect-form" id="connectPageForm">
+        <div class="field">
+          <label for="newPageToken">Connect a Facebook Page using its Page Access Token</label>
+          <input id="newPageToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste Page Access Token here" required />
+          <div class="help">The token is sent over this HTTPS admin session and saved on the VPS with restricted file permissions. It is never shown again in this dashboard. Use a Page token that can read the Page's lead forms.</div>
+        </div>
+        <button class="btn" id="connectPageButton" type="submit">Connect Page</button>
+      </form>
+      <div class="notice">Newly connected Pages are added with their forms paused. Enable only the forms you want to send to the CRM. Your existing Page keeps its current form selections. The webhook bridge counts above remain separate from polling counts below.</div>
+      <div id="metaSyncMessage" aria-live="polite"></div>
+      <div id="metaPagesContainer" class="page-list"><div class="empty">Loading connected Pages…</div></div>
+    </section>
+
     <section class="panel">
-      <div class="panel-head"><div><h2>Recent Meta leads</h2><div class="muted">Webhook events and CRM delivery status</div></div><div class="muted" id="updated">—</div></div>
+      <div class="panel-head"><div><h2>Recent Meta webhook leads</h2><div class="muted">Webhook events and CRM delivery status from the existing webhook bridge</div></div><div class="muted" id="updated">—</div></div>
       <div class="table-wrap"><table><thead><tr><th>Received</th><th>Lead</th><th>Phone / Email</th><th>Course</th><th>Status</th><th>Action / Error</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table></div>
     </section>
-    <div class="foot">Keep this dashboard private. Leads are stored locally in the service queue for retry and duplicate prevention. Do not expose the webhook admin endpoints or your .env file publicly.</div>
+    <div class="foot">Keep this dashboard private. Page tokens and sync state are stored on the VPS, not in browser storage. The Meta Lead Sync manager is local-only and is accessed through these authenticated admin routes. Back up the service data before server maintenance.</div>
   </div>
 <script>
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   function fmt(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?esc(value):d.toLocaleString();}
+  function setSyncMessage(message, isError=false){$('metaSyncMessage').innerHTML=message?`<div class="notice ${isError?'error':''}">${esc(message)}</div>`:'';}
+
+  async function apiJson(url, options={}){
+    const headers=new Headers(options.headers||{});
+    if(options.body) headers.set('Content-Type','application/json');
+    const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(body.error||`Request failed (${response.status})`);
+    return body;
+  }
+
+  function renderMetaSync(data){
+    const totals=data.totals||{};
+    $('metaPages').textContent=totals.connected_pages??0;
+    $('metaForms').textContent=totals.active_forms??0;
+    $('metaLeads').textContent=totals.total_leads??0;
+    $('metaSent').textContent=totals.sent??0;
+    $('metaProblems').textContent=Number(totals.retrying||0)+Number(totals.failed||0);
+    const service=data.service||{};
+    const status=$('syncServiceStatus');
+    status.textContent=service.dry_run?'Sync service · DRY RUN':(service.running?'Sync service · Live':'Sync service unavailable');
+    status.className='status '+(service.last_poll_error?'error':(service.dry_run?'checking':'connected'));
+
+    const pages=data.pages||[];
+    if(!pages.length){$('metaPagesContainer').innerHTML='<div class="empty">No Facebook Pages connected. Add a Page Access Token above to begin.</div>';return;}
+    $('metaPagesContainer').innerHTML=pages.map(page=>{
+      const c=page.counts||{};
+      const pageStatus=page.connection_status==='connected'?'connected':(page.connection_status==='error'?'error':'checking');
+      const forms=(page.forms||[]).map(form=>{
+        const fc=form.counts||{};
+        const canEnable=String(form.status).toUpperCase()==='ACTIVE';
+        return `<tr>
+          <td><strong>${esc(form.name)}</strong><small>ID: ${esc(form.id)}</small></td>
+          <td><span class="status ${canEnable?'connected':'checking'}">${esc(form.status||'Unknown')}</span></td>
+          <td>${Number(fc.total||0)}</td><td>${Number(fc.sent||0)}</td><td>${Number(fc.retrying||0)+Number(fc.failed||0)}</td>
+          <td><label class="toggle"><input type="checkbox" data-meta-action="form-enabled" data-page-id="${esc(page.id)}" data-form-id="${esc(form.id)}" ${form.enabled?'checked':''} ${canEnable?'':'disabled'}> Sync form</label></td>
+        </tr>`;
+      }).join('');
+      return `<article class="page-card">
+        <div class="page-head">
+          <div><div class="page-title">${esc(page.name)}</div><div class="page-id">Page ID: ${esc(page.id)} · Connected: ${fmt(page.connected_at)}</div><div style="margin-top:7px"><span class="status ${pageStatus}">${esc(page.connection_status||'checking')}</span> <span class="muted">Last checked: ${fmt(page.last_checked_at)}</span></div></div>
+          <div class="page-actions">
+            <label class="toggle"><input type="checkbox" data-meta-action="page-enabled" data-page-id="${esc(page.id)}" ${page.enabled?'checked':''}> Page enabled</label>
+            <button class="btn secondary small-btn" data-meta-action="refresh-page" data-page-id="${esc(page.id)}">Refresh forms</button>
+            <button class="btn danger small-btn" data-meta-action="disconnect-page" data-page-id="${esc(page.id)}" data-page-name="${esc(page.name)}">Disconnect</button>
+          </div>
+        </div>
+        ${page.last_error?`<div class="page-error">${esc(page.last_error)}</div>`:''}
+        <div class="page-stats">
+          <div class="page-stat"><strong>${Number(c.total||0)}</strong><span>Leads seen</span></div>
+          <div class="page-stat"><strong>${Number(c.sent||0)}</strong><span>Delivered</span></div>
+          <div class="page-stat"><strong>${Number(c.retrying||0)}</strong><span>Retrying</span></div>
+          <div class="page-stat"><strong>${Number(c.failed||0)}</strong><span>Failed</span></div>
+          <div class="page-stat"><strong>${Number(page.active_forms_count||0)} / ${Number(page.forms_count||0)}</strong><span>Enabled forms / total</span></div>
+        </div>
+        <div class="form-table-wrap"><table class="form-table"><thead><tr><th>Instant Form</th><th>Meta status</th><th>Leads</th><th>Delivered</th><th>Issues</th><th>Sync control</th></tr></thead><tbody>${forms||'<tr><td colspan="6" class="empty">No forms were returned for this Page. Use Refresh forms or verify the Page token permissions.</td></tr>'}</tbody></table></div>
+      </article>`;
+    }).join('');
+  }
+
+  async function loadMetaSync(){
+    try{
+      const data=await apiJson('/admin/api/meta/overview');
+      renderMetaSync(data);
+    }catch(error){
+      $('syncServiceStatus').textContent='Sync service unavailable';
+      $('syncServiceStatus').className='status error';
+      $('metaPagesContainer').innerHTML=`<div class="notice error">${esc(error.message)}. The existing webhook bridge dashboard is still available; Meta Lead Sync is a separate service.</div>`;
+      $('metaPages').textContent='—';$('metaForms').textContent='—';$('metaLeads').textContent='—';$('metaSent').textContent='—';$('metaProblems').textContent='—';
+    }
+  }
+
   async function load(){
     $('refresh').disabled=true;
     try{
-      const [summaryRes, configRes] = await Promise.all([fetch('/admin/api/summary'),fetch('/admin/api/config-check')]);
-      if(!summaryRes.ok || !configRes.ok) throw new Error('Could not load dashboard data. Check dashboard authentication.');
-      const summary=await summaryRes.json(); const config=await configRes.json();
+      const [summaryRes,configRes]=await Promise.all([fetch('/admin/api/summary',{credentials:'same-origin',cache:'no-store'}),fetch('/admin/api/config-check',{credentials:'same-origin',cache:'no-store'})]);
+      if(!summaryRes.ok||!configRes.ok) throw new Error('Could not load dashboard data. Check dashboard authentication.');
+      const summary=await summaryRes.json();const config=await configRes.json();
       $('received').textContent=summary.received;$('synced').textContent=summary.synced;$('pending').textContent=summary.pending;$('failed').textContent=summary.failed;
       $('connection').textContent=config.ok?'Configuration looks complete':'Configuration incomplete';
       $('connection').style.background=config.ok?'#e8f7ef':'#fff3d7';$('connection').style.color=config.ok?'#137547':'#8a5700';
-      $('config').innerHTML=[
-        ['Webhook callback',config.webhookUrl],['CRM endpoint',config.crmEndpointConfigured?'Configured':'Missing'],
-        ['CRM auth header',config.crmAuthHeader],['Meta Graph API',config.graphVersion],
-        ['Missing settings',config.missing.length?config.missing.join(', '):'None']
-      ].map(([k,v])=>`<div class="config-item"><strong>${esc(k)}</strong><span>${esc(v)}</span></div>`).join('');
+      $('config').innerHTML=[['Webhook callback',config.webhookUrl],['CRM endpoint',config.crmEndpointConfigured?'Configured':'Missing'],['CRM auth header',config.crmAuthHeader],['Meta Graph API',config.graphVersion],['Missing settings',config.missing.length?config.missing.join(', '):'None']].map(([k,v])=>`<div class="config-item"><strong>${esc(k)}</strong><span>${esc(v)}</span></div>`).join('');
       const jobs=summary.jobs||[];
       $('rows').innerHTML=jobs.length?jobs.map(j=>{
-        const status=esc(j.status||'unknown');
-        const canRetry=j.status==='failed'||j.status==='retrying';
-        return `<tr><td>${fmt(j.receivedAt)}<small>Lead ID: ${esc(j.leadId)}</small></td><td>${esc(j.name||'Awaiting lead details')}<small>Page: ${esc(j.pageId||'—')} · Form: ${esc(j.formId||'—')}</small></td><td>${esc(j.phone||'—')}<small>${esc(j.email||'')}</small></td><td>${esc(j.course||'—')}<small>${esc(j.campaign||'')}</small></td><td><span class="status ${status}">${status}</span><small>Attempts: ${Number(j.attempts||0)}</small></td><td>${canRetry?`<button class="btn secondary" onclick="retryLead('${encodeURIComponent(j.leadId)}')">Retry</button>`:''}${j.lastError?`<small class="error">${esc(j.lastError)}</small>`:(j.crmHttpStatus?`<small>CRM HTTP ${esc(j.crmHttpStatus)}</small>`:'')}</td></tr>`;
-      }).join(''):'<tr><td colspan="6" class="empty">No leads received yet. Submit a Meta test lead after completing webhook setup.</td></tr>';
+        const status=esc(j.status||'unknown');const canRetry=j.status==='failed'||j.status==='retrying';
+        return `<tr><td>${fmt(j.receivedAt)}<small>Lead ID: ${esc(j.leadId)}</small></td><td>${esc(j.name||'Awaiting lead details')}<small>Page: ${esc(j.pageId||'—')} · Form: ${esc(j.formId||'—')}</small></td><td>${esc(j.phone||'—')}<small>${esc(j.email||'')}</small></td><td>${esc(j.course||'—')}<small>${esc(j.campaign||'')}</small></td><td><span class="status ${status}">${status}</span><small>Attempts: ${Number(j.attempts||0)}</small></td><td>${canRetry?`<button class="btn secondary" onclick="retryLead('${encodeURIComponent(j.leadId)}')">Retry</button>`:''}${j.lastError?`<small class="error-text">${esc(j.lastError)}</small>`:(j.crmHttpStatus?`<small>CRM HTTP ${esc(j.crmHttpStatus)}</small>`:'')}</td></tr>`;
+      }).join(''):'<tr><td colspan="6" class="empty">No webhook leads received yet.</td></tr>';
       $('updated').textContent='Updated '+new Date().toLocaleTimeString();
-    }catch(error){$('connection').textContent='Unable to load';$('connection').style.background='#fdecec';$('connection').style.color='#b42318';$('rows').innerHTML=`<tr><td colspan="6" class="empty error">${esc(error.message)}</td></tr>`;}
+    }catch(error){$('connection').textContent='Unable to load';$('connection').style.background='#fdecec';$('connection').style.color='#b42318';$('rows').innerHTML=`<tr><td colspan="6" class="empty error-text">${esc(error.message)}</td></tr>`;}
     finally{$('refresh').disabled=false;}
+    await loadMetaSync();
   }
+
   async function retryLead(encodedId){
     const leadId=decodeURIComponent(encodedId);
-    const response=await fetch('/admin/api/retry/'+encodeURIComponent(leadId),{method:'POST'});
-    const body=await response.json().catch(()=>({}));
-    if(!response.ok){alert(body.error||'Could not queue retry');return;}
-    await load();
+    try{await apiJson('/admin/api/retry/'+encodeURIComponent(leadId),{method:'POST'});await load();}
+    catch(error){alert(error.message||'Could not queue retry');}
   }
+
+  $('connectPageForm').addEventListener('submit',async event=>{
+    event.preventDefault();
+    const token=$('newPageToken').value.trim();
+    if(!token){setSyncMessage('Paste a Page Access Token first.',true);return;}
+    $('connectPageButton').disabled=true;
+    setSyncMessage('Validating Page token and loading its Instant Forms…');
+    try{
+      const result=await apiJson('/admin/api/meta/pages',{method:'POST',body:JSON.stringify({pageToken:token})});
+      $('newPageToken').value='';
+      setSyncMessage(result.message||'Page connected successfully.');
+      await loadMetaSync();
+    }catch(error){setSyncMessage(error.message||'Could not connect Page.',true);}
+    finally{$('connectPageButton').disabled=false;}
+  });
+
+  document.addEventListener('change',async event=>{
+    const control=event.target.closest('[data-meta-action]');
+    if(!control)return;
+    const action=control.dataset.metaAction;
+    if(action!=='page-enabled'&&action!=='form-enabled')return;
+    const pageId=control.dataset.pageId;
+    control.disabled=true;
+    try{
+      if(action==='page-enabled') await apiJson(`/admin/api/meta/pages/${encodeURIComponent(pageId)}/enabled`,{method:'POST',body:JSON.stringify({enabled:control.checked})});
+      if(action==='form-enabled') await apiJson(`/admin/api/meta/pages/${encodeURIComponent(pageId)}/forms/${encodeURIComponent(control.dataset.formId)}/enabled`,{method:'POST',body:JSON.stringify({enabled:control.checked})});
+      setSyncMessage('Sync selection updated.');
+      await loadMetaSync();
+    }catch(error){control.checked=!control.checked;setSyncMessage(error.message,true);control.disabled=false;}
+  });
+
+  document.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-meta-action]');
+    if(!button)return;
+    const action=button.dataset.metaAction;const pageId=button.dataset.pageId;
+    if(action==='refresh-page'){
+      button.disabled=true;setSyncMessage('Refreshing Page information and forms…');
+      try{await apiJson(`/admin/api/meta/pages/${encodeURIComponent(pageId)}/refresh`,{method:'POST'});setSyncMessage('Page and form list refreshed. Newly discovered forms remain paused.');await loadMetaSync();}
+      catch(error){setSyncMessage(error.message,true);}
+      finally{button.disabled=false;}
+    }
+    if(action==='disconnect-page'){
+      const pageName=button.dataset.pageName||'this Page';
+      if(!confirm(`Disconnect ${pageName} from lead polling? Its existing lead history will be kept.`))return;
+      button.disabled=true;
+      try{await apiJson(`/admin/api/meta/pages/${encodeURIComponent(pageId)}`,{method:'DELETE'});setSyncMessage('Page disconnected. Existing lead history was preserved.');await loadMetaSync();}
+      catch(error){setSyncMessage(error.message,true);button.disabled=false;}
+    }
+  });
+
   $('refresh').addEventListener('click',load);
   load();setInterval(load,10000);
 </script>
