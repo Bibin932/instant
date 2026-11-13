@@ -16,6 +16,7 @@ const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const ADMIN_FILE = path.join(ROOT, 'public', 'admin.html');
+const adminAuthFailures = new Map();
 
 fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
 
@@ -72,6 +73,10 @@ function saveState() {
 }
 
 function adminAuth(req, res, next) {
+  const identity = String(req.ip || req.socket.remoteAddress || 'unknown').slice(0, 100);
+  const attempt = adminAuthFailures.get(identity);
+  if (attempt && attempt.blockedUntil > Date.now()) return res.status(429).send('Too many failed admin authentication attempts. Try again later.');
+
   const header = req.headers.authorization || '';
   if (!header.startsWith('Basic ')) {
     res.setHeader('WWW-Authenticate', 'Basic realm="Meta CRM Bridge Admin"');
@@ -93,13 +98,19 @@ function adminAuth(req, res, next) {
   const expectedPassword = env('ADMIN_PASSWORD');
 
   if (!expectedPassword || !timingSafeStringEqual(username, expectedUser) || !timingSafeStringEqual(password, expectedPassword)) {
+    const failures = (attempt?.failures || 0) + 1;
+    const blockedUntil = failures >= 10 ? Date.now() + 15 * 60 * 1000 : 0;
+    adminAuthFailures.set(identity, { failures: blockedUntil ? 0 : failures, blockedUntil });
     res.setHeader('WWW-Authenticate', 'Basic realm="Meta CRM Bridge Admin"');
-    return res.status(401).send('Invalid username or password');
+    return res.status(blockedUntil ? 429 : 401).send(blockedUntil ? 'Too many failed admin authentication attempts. Try again later.' : 'Invalid username or password');
   }
+  adminAuthFailures.delete(identity);
   return next();
 }
 
 function adminSameOrigin(req, res, next) {
+  const fetchSite = req.get('sec-fetch-site');
+  if (fetchSite && !['same-origin', 'none'].includes(fetchSite)) return res.status(403).json({ error: 'Cross-site admin request rejected' });
   const origin = req.get('origin');
   if (origin) {
     try {
@@ -138,6 +149,39 @@ async function proxyMetaLeadSync(req, res, internalPath) {
       detail: String(error.message || 'Local service request failed').slice(0, 180),
     });
   }
+}
+
+async function callMetaLeadSync(internalPath, method = 'GET', body = undefined) {
+  const port = Number(env('META_SYNC_ADMIN_PORT', '3111'));
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Meta Lead Sync management port is not configured correctly');
+  const options = { method, headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) };
+  if (body !== undefined) {
+    options.headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(body);
+  }
+  const upstream = await fetch(`http://127.0.0.1:${port}${internalPath}`, options);
+  const text = await upstream.text();
+  let data;
+  try { data = JSON.parse(text || '{}'); } catch { data = { error: 'Meta management service returned an invalid response.' }; }
+  return { status: upstream.status, data };
+}
+
+function parseCookies(header = '') {
+  const cookies = {};
+  for (const part of String(header).split(';')) {
+    const index = part.indexOf('=');
+    if (index < 1) continue;
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    try { cookies[key] = decodeURIComponent(value); } catch { /* ignore malformed cookie */ }
+  }
+  return cookies;
+}
+
+function oauthCookie(value, maxAge, cookieName = 'meta_oauth_state') {
+  if (!/^meta_oauth_[A-Za-z0-9_-]{20,60}$/.test(cookieName) && cookieName !== 'meta_oauth_state') throw new Error('Invalid OAuth cookie name');
+  const base = `${cookieName}=${encodeURIComponent(value)}; HttpOnly; Secure; SameSite=Lax; Path=/admin/meta/oauth/callback; Max-Age=${maxAge}`;
+  return base;
 }
 
 function verifyMetaSignature(rawBody, signatureHeader) {
@@ -495,8 +539,87 @@ app.get('/admin/api/config-check', adminAuth, (_req, res) => {
   });
 });
 
-// Multi-Page Meta Lead Sync management. These routes remain behind the
-// existing admin Basic Auth. The polling service itself is only bound to localhost.
+// Multi-App OAuth and Page/Form management. App secrets and Page tokens remain on the VPS.
+app.get('/admin/api/meta/apps', adminAuth, async (_req, res) => {
+  try {
+    const result = await callMetaLeadSync('/admin/apps');
+    return res.status(result.status).json(result.data);
+  } catch (error) {
+    return res.status(503).json({ error: 'Could not read Meta App registry.', detail: String(error.message || '').slice(0, 180) });
+  }
+});
+
+app.post('/admin/api/meta/apps', adminAuth, adminSameOrigin, async (req, res) => {
+  try {
+    const result = await callMetaLeadSync('/admin/apps', 'POST', req.body || {});
+    return res.status(result.status).json(result.data);
+  } catch (error) {
+    return res.status(503).json({ error: 'Could not save Meta App credentials.', detail: String(error.message || '').slice(0, 180) });
+  }
+});
+
+app.post('/admin/api/meta/apps/:appId/oauth/start', adminAuth, adminSameOrigin, async (req, res) => {
+  if (!/^\d{5,25}$/.test(String(req.params.appId || ''))) return res.status(400).json({ error: 'Invalid Meta App ID.' });
+  try {
+    const result = await callMetaLeadSync(`/admin/apps/${encodeURIComponent(req.params.appId)}/oauth/start`, 'POST', {});
+    if (result.status < 200 || result.status >= 300 || !result.data.auth_url || !result.data.state) return res.status(result.status).json(result.data);
+    let authUrl;
+    try { authUrl = new URL(result.data.auth_url); } catch { return res.status(502).json({ error: 'Meta returned an invalid authorization URL.' }); }
+    if (authUrl.protocol !== 'https:' || authUrl.hostname !== 'www.facebook.com') return res.status(502).json({ error: 'Rejected unexpected Meta authorization URL.' });
+    res.setHeader('Set-Cookie', oauthCookie(result.data.state, 600, `meta_oauth_${result.data.state}`));
+    return res.json({ ok: true, auth_url: authUrl.toString() });
+  } catch (error) {
+    return res.status(503).json({ error: 'Could not start Meta authorization.', detail: String(error.message || '').slice(0, 180) });
+  }
+});
+
+app.delete('/admin/api/meta/apps/:appId', adminAuth, adminSameOrigin, async (req, res) => {
+  if (!/^\d{5,25}$/.test(String(req.params.appId || ''))) return res.status(400).json({ error: 'Invalid Meta App ID.' });
+  try {
+    const result = await callMetaLeadSync(`/admin/apps/${encodeURIComponent(req.params.appId)}`, 'DELETE');
+    return res.status(result.status).json(result.data);
+  } catch (error) {
+    return res.status(503).json({ error: 'Could not remove Meta App.', detail: String(error.message || '').slice(0, 180) });
+  }
+});
+
+// OAuth callback is protected by a one-time server-side state plus an HttpOnly SameSite cookie.
+// It intentionally does not require Basic Auth because Meta redirects the browser here.
+app.get('/admin/meta/oauth/callback', async (req, res) => {
+  const state = typeof req.query.state === 'string' ? req.query.state : '';
+  // OAuth state is 32 random bytes encoded as base64url (43 characters).
+  // Validate it before deriving a cookie name so malformed callbacks fail closed
+  // with HTTP 400 instead of throwing while constructing the Set-Cookie header.
+  const validState = /^[A-Za-z0-9_-]{40,60}$/.test(state);
+  const cookieName = validState ? `meta_oauth_${state}` : 'meta_oauth_state';
+  const cookies = parseCookies(req.headers.cookie || '');
+  const cookieState = String(cookies[cookieName] || '');
+  res.setHeader('Set-Cookie', oauthCookie('', 0, cookieName));
+  if (!validState || !cookieState || !timingSafeStringEqual(state, cookieState)) {
+    return res.status(400).send('Meta connection request expired or failed its security check. Return to the Admin Panel and try again.');
+  }
+  try {
+    const params = new URLSearchParams();
+    params.set('state', state);
+    for (const key of ['code', 'error']) {
+      if (typeof req.query[key] === 'string') params.set(key, req.query[key].slice(0, 4096));
+    }
+    const result = await callMetaLeadSync(`/admin/oauth/callback?${params.toString()}`, 'GET');
+    if (result.status >= 200 && result.status < 300 && result.data.ok) {
+      const count = Number(result.data.pages_connected || 0);
+      const forms = Number(result.data.forms_discovered || 0);
+      const failures = Array.isArray(result.data.failures) ? result.data.failures.length : 0;
+      return res.redirect(303, `/admin?meta_oauth=success&pages=${Math.max(0, Math.min(count, 500))}&forms=${Math.max(0, Math.min(forms, 5000))}&failures=${Math.max(0, Math.min(failures, 500))}`);
+    }
+    console.warn('Meta OAuth callback failed:', String(result.data.error || 'Unknown Meta OAuth error').slice(0, 240));
+    return res.redirect(303, '/admin?meta_oauth=error');
+  } catch (error) {
+    console.warn('Meta OAuth callback could not reach management service:', String(error.message || '').slice(0, 180));
+    return res.redirect(303, '/admin?meta_oauth=error');
+  }
+});
+
+// Existing admin Basic Auth and loopback-only polling service remain in place.
 app.get('/admin/api/meta/overview', adminAuth, async (req, res) => {
   return proxyMetaLeadSync(req, res, '/admin/overview');
 });

@@ -12,3 +12,4 @@ meta-lead-sync/.env.*
 meta-lead-sync/data/*.json
 meta-lead-sync/data/*.tmp
 meta-lead-sync/data/*.backup*
+meta-lead-sync/data/*.key
