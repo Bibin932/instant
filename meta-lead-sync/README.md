@@ -1,111 +1,29 @@
-# Meta Lead Ads -> CRM (self-hosted Node.js)
+# Meta Lead Sync — Multi-App OAuth
 
-This is a separate polling service. It does not modify the existing `server.js`, webhook route, Nginx vhost, or WACRM/CRM application code.
+This service polls enabled Instant Forms from multiple Facebook Pages connected through multiple Meta Apps. Its local management API listens only on `127.0.0.1:3111` and is proxied through the existing authenticated Admin server.
 
-## Requirements
+## Admin-driven setup
 
-- Node.js 20 or newer.
-- The existing project `.env` one directory above this folder must contain `META_PAGE_TOKENS_JSON` keyed by Page ID.
-- The existing project must have `dotenv` installed (it is already used by the current project).
-- A CRM HTTPS API endpoint and its expected JSON/authentication contract.
+- Register each Meta App from `/admin` with its display name, App ID and App Secret.
+- Add the Admin Panel callback URL to that Meta App's Valid OAuth Redirect URIs.
+- Use **Connect Facebook Pages** to start Facebook OAuth for that specific App.
+- Pages available to the authorizing Facebook user are imported; the service discovers each Page's ACTIVE/INACTIVE forms.
+- New Pages and Forms begin paused. Enable the Page and only the ACTIVE Forms to send their leads to the existing CRM.
 
-## Install on the existing VPS
+The service requests `leads_retrieval`, `pages_show_list`, `pages_read_engagement` and `ads_management`. Meta permissions, App Review/Advanced Access, App mode and Page access/lead access must be approved by Meta and the Page owner. This implementation polls; it does not set up or subscribe Meta Webhooks for each App.
 
-Upload/extract this folder to:
+## CRM behavior
 
-`/www/wwwroot/faces.cybercodix.com/instant/meta-lead-sync`
+All connected Apps, Pages and Forms share the current CRM endpoint, payload mode and field mapping in the existing service `.env`. No CRM/WACRM source is changed by this update. The poller uses a 60-second default interval and the existing persistent lead state to avoid resending leads already marked `sent`.
 
-Then run:
+## Encrypted runtime data
 
-```bash
-cd /www/wwwroot/faces.cybercodix.com/instant/meta-lead-sync
-cp .env.example .env
-chmod 600 .env
-nano .env
-```
+On first start this version creates `data/secret.key` (32 random bytes, mode `0600`). It encrypts `data/apps.json` (App Secrets) and `data/connections.json` (Page Access Tokens) using AES-256-GCM. `data/` is mode `0700`; encrypted files and the key are mode `0600`. Existing plaintext `connections.json` is migrated on startup. `data/state.json` remains a separate protected status/history file.
 
-Keep `DRY_RUN=true` initially. The service reads the Page token for `META_PAGE_ID` from the existing parent file:
+Back up `secret.key`, `apps.json`, `connections.json` and `state.json` together. Never commit them. Losing `secret.key` makes the encrypted App registry and Page-token registry unreadable; the service stops rather than silently replacing it.
 
-`/www/wwwroot/faces.cybercodix.com/instant/.env`
+## Live validation
 
-It does not require copying the token into this new folder.
+Local syntax and security tests do not replace a real Meta test. After setup, authorize one App, enable one Page and one ACTIVE Form, submit a controlled lead, and verify one CRM record. Avoid routing the same Page/Form through both the legacy webhook bridge and this polling service unless cross-path CRM deduplication is enabled.
 
-## First safe test
-
-Check the existing `.env` contains a valid `META_PAGE_TOKENS_JSON` object for the Page ID. Then install/start the independent service:
-
-```bash
-cp meta-lead-sync.service /etc/systemd/system/meta-lead-sync.service
-systemctl daemon-reload
-systemctl enable --now meta-lead-sync
-systemctl status meta-lead-sync --no-pager
-journalctl -u meta-lead-sync -f
-```
-
-In dry-run mode it fetches Meta lead records but does not call the CRM. Logs show only lead IDs, form IDs, and field names—not lead values. Health check:
-
-```bash
-curl -sS http://127.0.0.1:3111/health
-```
-
-## First-run behavior
-
-By default, the first start records a baseline timestamp and does not import older leads. This avoids unexpectedly pushing historical/test leads into the CRM. New leads created after the service starts are eligible. Meta sample leads such as `test@meta.com` and names containing `<test lead:` are excluded by default.
-
-To intentionally backfill the form history, set `SYNC_HISTORICAL_LEADS=true` in this service's `.env`. Test leads remain excluded unless `SYNC_TEST_LEADS=true` is also set.
-
-## CRM configuration
-
-Do not set `DRY_RUN=false` until the CRM API contract has been confirmed. Configure:
-
-- `CRM_API_URL`: the exact HTTPS endpoint.
-- `CRM_API_METHOD`: usually `POST`.
-- `CRM_BEARER_TOKEN`: optional Bearer token if the API uses it.
-- `CRM_HEADERS_JSON`: optional additional headers as a JSON object, e.g. `{"X-API-Key":"..."}`.
-- `CRM_FIELD_MAP_JSON`: optional map from source keys (`full_name`, `email`, `phone_number`, `meta_lead_id`, `page_id`, `form_id`, `created_time`, `fields`, `raw_field_data`, `source`) to CRM field names.
-- `CRM_STATIC_FIELDS_JSON`: optional fixed values required by the CRM.
-
-With an empty field map, the service sends this standard JSON structure:
-
-```json
-{
-  "meta_lead_id": "...",
-  "source": "facebook_lead_ads",
-  "page_id": "...",
-  "form_id": "...",
-  "created_time": "...",
-  "full_name": "...",
-  "email": "...",
-  "phone_number": "...",
-  "fields": {"...": "..."},
-  "raw_field_data": []
-}
-```
-
-The CRM must accept that structure, or `CRM_FIELD_MAP_JSON` must be configured to match its schema. The service sends an `Idempotency-Key: meta-lead-{lead_id}` header. The CRM should honor that header or enforce a unique constraint on `meta_lead_id` to protect against duplicates if a request succeeds remotely but the network fails before the local service records the success.
-
-After the endpoint and field mapping are confirmed, set `DRY_RUN=false`, then restart:
-
-```bash
-systemctl restart meta-lead-sync
-journalctl -u meta-lead-sync -f
-```
-
-## State and logs
-
-Local delivery state is stored at `data/state.json` with restrictive permissions. Sent leads are not sent again. Failed requests are retried with exponential backoff. Do not delete `data/state.json` after going live, or the service may send previously imported leads again.
-
-This service polls active and inactive Page forms every `POLL_INTERVAL_SECONDS` (default 60). Meta API access still depends on the Page token and the app's granted Meta permissions. Self-hosting does not bypass Meta App Review / Advanced Access requirements for production lead retrieval.
-
-## Multi-Page admin management
-
-The existing authenticated dashboard at `https://faces.cybercodix.com/admin` now includes a **Meta Lead Sync · Accounts & Forms** section.
-
-- Existing Page token configuration is migrated on first start into `data/connections.json` with the existing Page's active-form behavior preserved.
-- Add another Page by pasting that Page's Page Access Token into the dashboard. The service validates the token, resolves the Page name, and discovers its lead forms.
-- Newly connected Pages have their forms paused by default. Enable only the forms that should send leads to the CRM.
-- Each Page and form shows its own lead totals, CRM deliveries, retrying and failed counts, status, and last check time.
-- Pausing a Page or form stops future polling; it does not delete lead history. Disconnecting a Page removes its stored token and connection but keeps processed lead history.
-- Tokens are stored in `data/connections.json` with mode `0600`; that file is ignored by Git. The local management API binds only to `127.0.0.1:HEALTH_PORT`; the existing admin server proxies it behind its existing Basic Authentication.
-
-Do not commit `.env`, `data/state.json`, or `data/connections.json`. Back up the two JSON data files before deployment or server maintenance. The webhook bridge statistics and polling-service statistics are shown separately because they are two different delivery paths.
+The old root `.env` is deliberately left unchanged for the independent legacy webhook bridge. If it contains `META_APP_SECRET`, it remains subject to the root `.env` file permissions; this new AES-GCM registry encryption applies to the multi-App registry and dashboard-managed Page-token connections.
