@@ -1,0 +1,117 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const Module = require('node:module');
+
+// The production service depends on dotenv already present in the VPS project.
+// Stub only dotenv for these pure security/unit checks; no network calls are made.
+const oldDryRun = process.env.DRY_RUN;
+process.env.DRY_RUN = 'true';
+const originalLoad = Module._load;
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (request === 'dotenv') return { config: () => ({ parsed: {} }) };
+  return originalLoad.call(this, request, parent, isMain);
+};
+const service = require('../meta-lead-sync/lead-sync.js');
+Module._load = originalLoad;
+if (oldDryRun === undefined) delete process.env.DRY_RUN; else process.env.DRY_RUN = oldDryRun;
+
+const serviceSource = fs.readFileSync(path.join(__dirname, '..', 'meta-lead-sync', 'lead-sync.js'), 'utf8');
+const serverSource = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+
+test('App ID and App Secret validation rejects malformed credentials', () => {
+  assert.throws(() => service.validateAppInput({ name: 'Client App', appId: 'abc', appSecret: 'x'.repeat(32) }), /App ID/);
+  assert.throws(() => service.validateAppInput({ name: 'Client App', appId: '1234567890', appSecret: 'short' }), /App Secret/);
+  assert.throws(() => service.validateAppInput({ name: 'x', appId: '1234567890', appSecret: 's'.repeat(32) }), /App name/);
+});
+
+test('public App summary never exposes App Secret', () => {
+  const secret = 'S'.repeat(32);
+  const summary = service.publicAppSummary({ app_id: '1234567890123', name: 'Client A', secret, created_at: '2026-01-01T00:00:00.000Z' });
+  assert.equal(summary.app_id, '1234567890123');
+  assert.equal(Object.hasOwn(summary, 'secret'), false);
+  assert.equal(JSON.stringify(summary).includes(secret), false);
+});
+
+test('OAuth callback URI is HTTPS and fixed to the configured origin', () => {
+  const old = process.env.PUBLIC_BASE_URL;
+  process.env.PUBLIC_BASE_URL = 'https://faces.cybercodix.com';
+  assert.equal(service.getOAuthCallbackUri(), 'https://faces.cybercodix.com/admin/meta/oauth/callback');
+  process.env.PUBLIC_BASE_URL = 'http://faces.cybercodix.com';
+  assert.throws(() => service.getOAuthCallbackUri(), /HTTPS/);
+  if (old === undefined) delete process.env.PUBLIC_BASE_URL; else process.env.PUBLIC_BASE_URL = old;
+});
+
+test('OAuth state is high entropy, expires, and can only be consumed once', () => {
+  const state = service.createOAuthState('1234567890123', 'https://faces.cybercodix.com/admin/meta/oauth/callback');
+  assert.match(state, /^[A-Za-z0-9_-]{40,}$/);
+  const first = service.consumeOAuthState(state);
+  assert.equal(first.app_id, '1234567890123');
+  assert.equal(service.consumeOAuthState(state), null);
+});
+
+test('OAuth authorization URLs use Meta HTTPS host and least-privilege lead scopes', () => {
+  const url = new URL(service.buildOAuthDialogUrl('1234567890123', 'https://faces.cybercodix.com/admin/meta/oauth/callback', 'random-state'));
+  assert.equal(url.protocol, 'https:');
+  assert.equal(url.hostname, 'www.facebook.com');
+  assert.equal(url.searchParams.get('client_id'), '1234567890123');
+  assert.equal(url.searchParams.get('state'), 'random-state');
+  assert.deepEqual(url.searchParams.get('scope').split(','), ['leads_retrieval', 'pages_show_list', 'pages_read_engagement', 'ads_management']);
+});
+
+test('Connection identifiers distinguish the same Page connected through different Apps', () => {
+  assert.notEqual(
+    service.connectionKey({ app_id: '1111111111111', id: '9999999999999' }),
+    service.connectionKey({ app_id: '2222222222222', id: '9999999999999' }),
+  );
+});
+
+test('Page summaries do not expose Page Access Tokens', () => {
+  const token = 'EAAB'.padEnd(80, 'Z');
+  const summary = service.pageSummary({
+    id: '9999999999999', connection_id: '1234567890123:9999999999999', app_id: '1234567890123', app_name: 'Client App',
+    name: 'Client Page', token, enabled: false, forms: [], counts: {},
+  });
+  assert.equal(Object.hasOwn(summary, 'token'), false);
+  assert.equal(JSON.stringify(summary).includes(token), false);
+});
+
+test('Management service binds to loopback only and OAuth callbacks use state-cookie checks', () => {
+  assert.equal(service.MANAGEMENT_HOST, '127.0.0.1');
+  assert.match(serverSource, /timingSafeStringEqual\(state, cookieState\)/);
+  assert.match(serverSource, /HttpOnly; Secure; SameSite=Lax/);
+  assert.match(serverSource, /meta_oauth_\$\{state\}/);
+  assert.ok(serverSource.includes("const validState = /^[A-Za-z0-9_-]{40,60}$/.test(state);"));
+  assert.match(serverSource, /adminSameOrigin/);
+  assert.match(serviceSource, /pendingOAuthStates\.delete/);
+});
+
+test('App registry write path enforces restrictive permissions and App Secret is stored only server-side', () => {
+  assert.match(serviceSource, /fs\.chmod\(APPS_FILE, 0o600\)/);
+  assert.match(serviceSource, /encryptProtectedDocument\(\{ version: 1, updated_at: new Date\(\)\.toISOString\(\), apps: metaApps \}, 'apps'\)/);
+  assert.match(serviceSource, /encryptProtectedDocument\(\{ version: 1, updated_at: new Date\(\)\.toISOString\(\), pages: connections \}, 'connections'\)/);
+  assert.match(serviceSource, /STORAGE_KEY_FILE = path\.join\(DATA_DIR, 'secret\.key'\)/);
+  assert.match(serviceSource, /fs\.chmod\(DATA_DIR, 0o700\)/);
+  assert.match(serviceSource, /fs\.open\(STORAGE_KEY_FILE, 'wx', 0o600\)/);
+  assert.match(serviceSource, /APPS_FILE = path\.join\(DATA_DIR, 'apps\.json'\)/);
+  assert.match(serverSource, /appSecret/);
+  assert.doesNotMatch(serverSource, /res\.json\(\{[^}]*appSecret/);
+});
+
+
+test('App secrets and Page tokens are encrypted with authenticated AES-256-GCM storage', () => {
+  const key = require('node:crypto').randomBytes(32);
+  const secret = 'a-very-sensitive-meta-app-secret';
+  const token = 'EAAB'.padEnd(100, 'X');
+  const protectedDoc = service.encryptProtectedDocument({ appSecret: secret, pageToken: token }, 'apps', key);
+  const serialized = JSON.stringify(protectedDoc);
+  assert.equal(serialized.includes(secret), false);
+  assert.equal(serialized.includes(token), false);
+  assert.deepEqual(service.decryptProtectedDocument(protectedDoc, 'apps', key), { appSecret: secret, pageToken: token });
+  assert.throws(() => service.decryptProtectedDocument(protectedDoc, 'connections', key));
+  const tampered = { ...protectedDoc, ciphertext: Buffer.from('tampered').toString('base64') };
+  assert.throws(() => service.decryptProtectedDocument(tampered, 'apps', key));
+});
